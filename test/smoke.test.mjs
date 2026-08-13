@@ -221,3 +221,18 @@ test("a reviewer never gains write access from an implementer's box", async () =
   fs.rmSync(dir, { recursive: true, force: true });
   fs.rmSync(home, { recursive: true, force: true });
 });
+
+test("the skills route launches through the guarded runner", () => {
+  // The admission check, box selection, permission mapping and accounting all
+  // live in `agentkit run`. A lead that spawns agents directly gets none of them,
+  // so the protocols must name the runner or the whole layer is decorative.
+  for (const lang of ["en", "ru"]) {
+    const dir = tmp();
+    run(["init", "--lang", lang, "--pack", "full"], dir);
+    for (const s of ["parallel-work", "tech-lead", "workspace-protocol"]) {
+      const text = fs.readFileSync(path.join(dir, ".agentkit/skills", `${s}.md`), "utf8");
+      assert.ok(text.includes("agentkit run"), `${lang}/${s} does not mention the runner`);
+    }
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});

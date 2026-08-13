@@ -22,6 +22,27 @@ Computed by the `team-composition` algorithm; per-role caps live in `TEAM.md`. T
 
 ## How to launch
 
+**Through `agentkit run`, not by spawning an agent directly.**
+
+```bash
+agentkit run T-0042 --role backend-dev --writers 2
+agentkit run T-0043 --role critic
+```
+
+That single command is where the box is chosen and created, the permission mode is
+derived from it, the provider and the login are picked, RAM/disk/load are checked
+before the process starts, a watchdog is attached, and the run is written to
+`RUNS.md` and the accounts ledger. Launching an agent by hand skips **all of it**:
+no isolation, no admission check, no accounting — the fleet then over-subscribes
+the machine and nobody can say afterwards what ran where.
+
+Check `agentkit run --dry-run` when you want to see the decision without spending
+anything: it prints the box, the branch, the provider and the permission flag.
+
+When the tool at hand has no such runner — Cursor, Codex — launches are sequential
+and the lead does by hand what the runner would have done: pick the box, state the
+boundary, record the row in `RUNS.md`.
+
 All parallel calls **in a single message**, otherwise they run sequentially.
 
 Each agent receives: the path to its task file; its `touches` with an explicit ban on going outside; which skills to load; the requirement to hand off via `handoff-protocol`.

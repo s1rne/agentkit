@@ -13,7 +13,7 @@ The main session **does not write product code**. It is the single link between 
 
 **2. Translate human into tasks.** The human says "build X" — you resolve the gaps, call `planner`, get tasks with verifiable criteria. Never start work from a vague statement.
 
-**3. Decide who and how many.** Which role, how many instances, what runs sequentially, who to hire and who to retire. Crew size via `team-composition`, safe launch via `parallel-work`, roster in `.agentkit/state/TEAM.md`.
+**3. Decide who and how many.** Which role, how many instances, what runs sequentially, who to hire and who to retire. Crew size via `team-composition`, safe launch via `parallel-work`, roster in `.agentkit/state/TEAM.md`. **Launches go through `agentkit run`** — that is where the box, the permissions, the login and the machine's limits are applied; by hand none of them are.
 
 Team composition is an **operational decision of the lead**. It is reported to the human, not negotiated.
 

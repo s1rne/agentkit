@@ -39,6 +39,13 @@ One task, one box, whoever is working in it. Consequences:
 
 **Merging is a separate task, never a side effect of `done`.** Nothing is merged before the critic has passed. The merge is done by `integrator`, which is also the only role permitted to resolve a conflict between two agents' work. `risk: high` merges go to the human.
 
+## Never launch around the runner
+
+A box exists only because `agentkit run` created it. An agent started by hand works
+in the human's directory with whatever permissions it inherited, and no row appears
+in `RUNS.md`. Where a launch cannot go through the runner — a tool without one — the
+lead writes the box into the task file and records the row itself.
+
 ## The report
 
 Every agent that worked in a box states, in the report section required by `handoff-protocol`:

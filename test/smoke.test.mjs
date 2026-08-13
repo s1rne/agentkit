@@ -324,3 +324,31 @@ test("overlapping work areas are detected as paths, not as strings", async () =>
   assert.equal(cl.length, 1);
   assert.deepEqual([cl[0].a, cl[0].b], ["T-1", "T-2"]);
 });
+
+test("a task's declared risk decides its box, even when the caller forgets", async () => {
+  const dir = tmp();
+  const home = tmp();
+  process.env.AGENTKIT_HOME = home;
+  execFileSync("git", ["-C", dir, "init", "-q"], { cwd: dir });
+  execFileSync("git", ["-C", dir, "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-q", "--allow-empty", "-m", "x"]);
+  run(["init", "--pack", "full"], dir);
+  fs.writeFileSync(
+    path.join(dir, "tasks/tasks/T-0099-опасная.md"),
+    "---\nid: T-0099\ntitle: Опасная\nstatus: todo\nowner: data-engineer\nrisk: high\n---\n\n## Зачем\n\nтекст\n"
+  );
+
+  const { run: orchRun } = await import("../lib/orchestrator.mjs");
+  const cfg = JSON.parse(fs.readFileSync(path.join(dir, ".agentkit/config.json"), "utf8"));
+  const providers = JSON.parse(fs.readFileSync(path.join(dir, ".agentkit/providers.json"), "utf8"));
+
+  // The caller passes no risk at all. Before this, the task landed in a shared
+  // box and wrote straight into the human's working directory.
+  const r = await orchRun(dir, { ...cfg, providers }, { task: "T-0099", dryRun: true });
+  assert.equal(r.box.mode, "worktree", `risk: high must isolate, got ${r.box.mode}`);
+  assert.equal(r.box.permission, "isolated");
+  assert.equal(r.role, "data-engineer", "owner comes from the task when not given");
+
+  delete process.env.AGENTKIT_HOME;
+  fs.rmSync(dir, { recursive: true, force: true });
+  fs.rmSync(home, { recursive: true, force: true });
+});

@@ -302,3 +302,25 @@ test("a run's report lands in the task file, not only in the log", async () => {
   assert.ok(text.indexOf("### critic") < text.indexOf("### architect"), "history reads top to bottom");
   fs.rmSync(dir, { recursive: true, force: true });
 });
+
+test("overlapping work areas are detected as paths, not as strings", async () => {
+  const { overlap, collisions } = await import("../lib/team.mjs");
+  // packages/db and packages/db/client are one package under two spellings.
+  // Missing this once cost two incompatible contracts and an architect to unpick them.
+  assert.ok(overlap({ touches: ["packages/db"] }, { touches: ["packages/db/client"] }));
+  assert.ok(overlap({ touches: ["packages/db/client"] }, { touches: ["packages/db"] }));
+  assert.ok(overlap({ touches: ["apps/web"] }, { touches: ["apps/web"] }));
+  // A shared prefix that is not a path boundary is not an overlap.
+  assert.equal(overlap({ touches: ["packages/dbx"] }, { touches: ["packages/db"] }), null);
+  assert.equal(overlap({ touches: ["packages/db"] }, { touches: ["packages/config"] }), null);
+  // Trailing slashes and comma-joined frontmatter must not fool it.
+  assert.ok(overlap({ touches: ["packages/db/"] }, { touches: "packages/db/client" }));
+
+  const cl = collisions([
+    { id: "T-1", touches: ["packages/db"] },
+    { id: "T-2", touches: ["packages/db/client"] },
+    { id: "T-3", touches: ["apps/web"] },
+  ]);
+  assert.equal(cl.length, 1);
+  assert.deepEqual([cl[0].a, cl[0].b], ["T-1", "T-2"]);
+});

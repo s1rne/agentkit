@@ -174,7 +174,7 @@ async function cmdSync(quiet) {
 
 // ─────────────────────────────── doctor
 
-function cmdDoctor() {
+async function cmdDoctor() {
   const cfg = loadConfig(ROOT);
   const t = messages(cfg.project?.language);
   log(c.b(`\n  ${t.doctorHeader}\n`));
@@ -211,6 +211,16 @@ function cmdDoctor() {
 
   // NOW must not still be a template
   if (unfilled(path.join(ROOT, ".agentkit", "state", "NOW.md"))) warn(t.nowEmpty);
+
+  // Две задачи в одном пакете дают не конфликт слияния, а два несовместимых замысла
+  try {
+    const { gather, collisions } = await import("../lib/team.mjs");
+    const g = gather(ROOT, providersConfig(ROOT));
+    const cl = collisions([...g.ready, ...g.active.map((a) => g.tasks.get(a.task))].filter(Boolean));
+    for (const c of cl.slice(0, 5)) {
+      warn(`${c.a} и ${c.b} трогают одно и то же (${c.at.a} ↔ ${c.at.b}) — одновременно не запускать`);
+    }
+  } catch {}
 
   // No version control means no undo for anything an agent writes
   try {
@@ -297,7 +307,18 @@ async function cmdRun() {
 
   log(c.b("\n  agentkit run"), c.dim(`· ${role} · ${task || "ad-hoc"}\n`));
 
-  const report = await orch.run(ROOT, { ...cfg, providers: pcfg }, {
+  /**
+   * `--wait` вместо мгновенного `deferred`.
+   *
+   * Без него вызывающий обязан сам крутить цикл повторов, и на живом прогоне
+   * это дало худший из возможных исходов: конвейер счёл «нет места» провалом
+   * исполнителя и за двадцать секунд прокрутил всю очередь вхолостую.
+   * Ждать место — работа запускателя, а не каждого его пользователя.
+   */
+  const waitFor = has("wait") ? Number(arg("wait-minutes", 30)) * 60_000 : 0;
+  const until = Date.now() + waitFor;
+
+  const attempt = () => orch.run(ROOT, { ...cfg, providers: pcfg }, {
     task,
     role,
     needs,
@@ -312,6 +333,13 @@ async function cmdRun() {
     limits: { ...res.DEFAULT_LIMITS, ...pcfg.limits },
     dryRun: has("dry-run"),
   });
+
+  let report = await attempt();
+  while (report.status === "deferred" && Date.now() < until) {
+    log(c.dim(`      ${report.reason} — жду место, осталось ${Math.ceil((until - Date.now()) / 60000)} мин`));
+    await new Promise((r) => setTimeout(r, 20_000));
+    report = await attempt();
+  }
 
   const line = `${report.status}${report.reason ? " — " + report.reason : ""}`;
   report.status === "done" ? ok(line) : report.status === "failed" || report.status === "killed" ? err(line) : warn(line);
@@ -656,8 +684,28 @@ async function cmdProviders() {
   log("");
 }
 
+/**
+ * Настройки провайдеров берутся из основного каталога проекта, а не из того,
+ * откуда запущена команда.
+ *
+ * Рабочая копия задачи — это тот же репозиторий на другой ветке, и в ней лежит
+ * своя копия `providers.json`, отставшая на момент ответвления. На живом прогоне
+ * это дало запуск, упершийся в потолок, поднятый в основном каталоге минутой
+ * ранее. Реестр запусков общий на машину — значит и лимиты должны читаться из
+ * одного места.
+ */
+function projectRoot(root) {
+  try {
+    const common = execFileSync("git", ["-C", root, "rev-parse", "--path-format=absolute", "--git-common-dir"], {
+      encoding: "utf8",
+    }).trim();
+    if (common) return path.dirname(common);
+  } catch {}
+  return root;
+}
+
 function providersConfig(root) {
-  const f = path.join(root, ".agentkit", "providers.json");
+  const f = path.join(projectRoot(root), ".agentkit", "providers.json");
   const fallback = { accounts: [], prefer: {}, roles: {}, limits: {}, context: {} };
   if (!fs.existsSync(f)) return fallback;
   try {
@@ -752,7 +800,7 @@ const cmd = process.argv[2];
 
 if (cmd === "init") await cmdInit();
 else if (cmd === "sync") await cmdSync(false);
-else if (cmd === "doctor") cmdDoctor();
+else if (cmd === "doctor") await cmdDoctor();
 else if (cmd === "status") cmdStatus();
 else if (cmd === "role") cmdRole();
 else if (cmd === "run" || cmd === "spawn") await cmdRun();

@@ -1,11 +1,56 @@
 {
-  "name": "agentkit",
+  "name": "agent-kit",
   "version": "0.1.0",
-  "description": "Команда ИИ-агентов, память и процессы разработки — разворачивается в любом проекте одной командой",
-  "type": "module",
-  "bin": { "agentkit": "./bin/agentkit.mjs" },
-  "files": ["bin", "lib", "template", "packs", "README.md"],
-  "engines": { "node": ">=18" },
+  "description": "Команда ИИ-агентов, память проекта и инженерные процессы — разворачиваются в любом репозитории одной командой. Claude Code, Cursor, AGENTS.md.",
+  "keywords": [
+    "ai-agents",
+    "agent-team",
+    "claude-code",
+    "cursor",
+    "codex",
+    "agents-md",
+    "context-engineering",
+    "ai-workflow",
+    "subagents",
+    "developer-tools",
+    "scaffolding"
+  ],
+  "author": "s1rne <s.simaranov8@gmail.com>",
   "license": "MIT",
-  "keywords": ["ai-agents", "claude-code", "cursor", "codex", "agent-team", "context-engineering"]
+  "homepage": "https://github.com/s1rne/agentkit#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/s1rne/agentkit.git"
+  },
+  "bugs": {
+    "url": "https://github.com/s1rne/agentkit/issues"
+  },
+  "type": "module",
+  "bin": {
+    "agent-kit": "./bin/agentkit.mjs",
+    "agentkit": "./bin/agentkit.mjs"
+  },
+  "exports": {
+    "./bin/agentkit.mjs": "./bin/agentkit.mjs",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "bin",
+    "lib",
+    "template",
+    "packs",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "test": "node --test test/*.test.mjs",
+    "prepublishOnly": "node bin/agentkit.mjs --help > /dev/null"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "sideEffects": false
 }

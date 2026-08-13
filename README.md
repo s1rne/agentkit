@@ -3,7 +3,7 @@
 Команда ИИ-агентов, память проекта и инженерные процессы — разворачиваются в любом проекте одной командой.
 
 ```bash
-npx agentkit init
+npx agent-kit init
 ```
 
 Работает в **Claude Code**, **Cursor** и любом инструменте, читающем `AGENTS.md` (Codex и совместимые).
@@ -121,11 +121,11 @@ scribe       → журнал, NOW, доска                   done
 ## CLI
 
 ```bash
-npx agentkit init --pack web-product --adapters claude-code,cursor
-npx agentkit sync        # перегенерировать конфиги из .agentkit/
-npx agentkit doctor      # проверить целостность
-npx agentkit status      # штат и текущее состояние
-npx agentkit role cap backend-dev 4
+npx agent-kit init --pack web-product --adapters claude-code,cursor
+npx agent-kit sync        # перегенерировать конфиги из .agentkit/
+npx agent-kit doctor      # проверить целостность
+npx agent-kit status      # штат и текущее состояние
+npx agent-kit role cap backend-dev 4
 ```
 
 Паки: `base` (6 ролей) · `web-product` (10) · `full` (13).

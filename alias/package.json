@@ -1,0 +1,41 @@
+{
+  "name": "@s1rne/agentkit",
+  "version": "0.1.0",
+  "description": "Алиас пакета agent-kit — команда ИИ-агентов и память проекта в любом репозитории.",
+  "keywords": [
+    "ai-agents",
+    "agent-team",
+    "claude-code",
+    "cursor",
+    "codex",
+    "agents-md"
+  ],
+  "author": "s1rne <s.simaranov8@gmail.com>",
+  "license": "MIT",
+  "homepage": "https://github.com/s1rne/agentkit#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/s1rne/agentkit.git",
+    "directory": "alias"
+  },
+  "bugs": {
+    "url": "https://github.com/s1rne/agentkit/issues"
+  },
+  "type": "module",
+  "bin": {
+    "agentkit": "./bin/agentkit.mjs"
+  },
+  "files": [
+    "bin",
+    "README.md"
+  ],
+  "dependencies": {
+    "agent-kit": "^0.1.0"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

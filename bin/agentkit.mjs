@@ -43,7 +43,7 @@ async function cmdInit() {
   const dest = path.join(ROOT, ".agentkit");
 
   if (fs.existsSync(dest) && !has("force")) {
-    err(".agentkit уже существует. Обновить конфиги: npx agentkit sync. Переустановить: --force");
+    err(".agentkit уже существует. Обновить конфиги: npx agent-kit sync. Переустановить: --force");
     process.exit(1);
   }
 
@@ -173,7 +173,7 @@ function cmdDoctor() {
   if (cfg.adapters.includes("claude-code") && fs.existsSync(claudeAgents)) {
     const srcM = Math.max(...readDir(path.join(ROOT, ".agentkit", "roles")).map((f) => fs.statSync(path.join(ROOT, ".agentkit", "roles", f)).mtimeMs), 0);
     const genM = Math.min(...readDir(claudeAgents).map((f) => fs.statSync(path.join(claudeAgents, f)).mtimeMs), Infinity);
-    if (srcM > genM) warn("исходники .agentkit/ новее сгенерированного — выполни: npx agentkit sync");
+    if (srcM > genM) warn("исходники .agentkit/ новее сгенерированного — выполни: npx agent-kit sync");
   }
 
   const active = activeRoles(ROOT, cfg).length;
@@ -222,20 +222,20 @@ function cmdRole() {
   else { err("role enable|disable|cap <имя> [n]"); process.exit(1); }
 
   write(cfgPath, JSON.stringify(cfg, null, 2) + "\n");
-  warn("не забудь: npx agentkit sync");
+  warn("не забудь: npx agent-kit sync");
 }
 
 // ─────────────────────────────── main
 
 const cmd = process.argv[2];
 const help = `
-  ${c.b("agentkit")} — команда ИИ-агентов, память и процессы разработки в любом проекте
+  ${c.b("agent-kit")} — команда ИИ-агентов, память и процессы разработки в любом проекте
 
-  ${c.b("npx agentkit init")} [--pack base|web-product] [--adapters claude-code,cursor,agents-md] [--force]
-  ${c.b("npx agentkit sync")}      перегенерировать конфиги инструментов из .agentkit/
-  ${c.b("npx agentkit doctor")}    проверить целостность
-  ${c.b("npx agentkit status")}    штат команды и текущее состояние
-  ${c.b("npx agentkit role")} enable|disable|cap <роль> [n]
+  ${c.b("npx agent-kit init")} [--pack base|web-product] [--adapters claude-code,cursor,agents-md] [--force]
+  ${c.b("npx agent-kit sync")}      перегенерировать конфиги инструментов из .agentkit/
+  ${c.b("npx agent-kit doctor")}    проверить целостность
+  ${c.b("npx agent-kit status")}    штат команды и текущее состояние
+  ${c.b("npx agent-kit role")} enable|disable|cap <роль> [n]
 
   Правь ${c.b(".agentkit/")}, не сгенерированные .claude/ и .cursor/ — их затрёт sync.
 `;

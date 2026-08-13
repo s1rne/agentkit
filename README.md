@@ -154,6 +154,76 @@ Packs: `base` (6 roles) · `web-product` (10) · `full` (13). Languages: `en` (d
 
 ---
 
+## Running agents
+
+Agents run **only through the vendors' subscription CLIs** — `claude` and `cursor-agent`. Never through a metered API key: that path is billed separately and per token. The orchestrator strips `ANTHROPIC_API_KEY`, `CURSOR_API_KEY` and friends from every child process, and `doctor` fails if one is set in your shell. Two accounts of the same vendor are separated by `CLAUDE_CONFIG_DIR` / `CURSOR_CONFIG_DIR`, not by keys.
+
+A role asks for a **capability**, not a provider — `code`, `bulk`, `images`, `big-context`, `plan-mode`, `worktree`, `parallel`. The router picks among providers that are actually logged in.
+
+```bash
+agentkit providers      # who is available and what each adds
+agentkit run T-0042 --role backend-dev --writers 2
+agentkit context        # how full this session is · how many agents the machine allows
+agentkit usage          # tokens spent in the rolling window
+agentkit box list       # open boxes, branches, uncommitted work
+```
+
+**Everything works on Claude Code alone.** Cursor only adds capability. A capability nobody has blocks *one task* — recorded with the exact command that would fix it — and never stops the wave.
+
+## Two accounts of the same vendor
+
+Two subscriptions are two logins, never two API keys. Adding one:
+
+```bash
+agentkit account add cursor work
+# prints the exact login command for that account, then:
+agentkit account list
+```
+
+What separates the logins differs by vendor, and it was measured rather than assumed:
+
+| Vendor | Separated by | Evidence |
+|---|---|---|
+| Claude Code | `CLAUDE_CONFIG_DIR` | an empty config dir reports `loggedIn: false` |
+| Cursor | `HOME` | an empty `CURSOR_CONFIG_DIR` still reports the **same** user — the token lives in the system keychain, which is found through `HOME` |
+
+`account add` sets up whichever one actually works. **Check it took effect with `account list`: two rows showing the same address mean the isolation did not happen**, and the kit marks them as one login rather than pretending it has two.
+
+Work goes to whichever login has spent the least in the current subscription window — not round-robin, because one task can cost ten times another. A run that comes back rate-limited or unauthenticated puts that login to rest for the window and retries once on another; never in a loop.
+
+## Where agents work
+
+Every task gets a **box**, chosen by the lead and written into the task file:
+
+| Mode | When |
+|---|---|
+| `readonly` | reviewing roles — no write tools at all |
+| `shared` | exactly one writer, ordinary task: no branch, no merge |
+| `worktree` | two or more concurrent writers, `risk: high`, or a migration — own branch `ak/<task>` |
+| `sandbox` | not a git repository, or a destructive operation |
+
+Two concurrent writers in one directory collide over the git index, the build output and the test run — not just over file lines. That is why the threshold is "two writers", not "overlapping files".
+
+Boxes live outside the repo at `~/.agentkit/boxes/<repo>/<task>`. The box belongs to the **task**, not the agent: a subteam inherits its parent's box, and nesting is capped at depth 2. Merging is a separate task owned by `integrator`, never a side effect of `done`, and never before the critic has passed.
+
+## Staying off your machine's back
+
+The fleet must not make the computer unusable. Before every spawn there is an admission check — RAM headroom, disk headroom, load per core, concurrency cap — and a refusal comes back with an actionable reason instead of a silent queue. During a run a watchdog samples the process tree and kills anything past its RSS ceiling or wall clock.
+
+Defaults reserve 6 GB of RAM and 20 GB of disk for you, cap concurrency at performance-cores-minus-two (8 at most), assume 1.2 GB per agent — a figure taken from a real run that peaked at 1.4 GB, not from an idle process, and give each agent 3 GB RSS and 20 minutes. All of it is in `.agentkit/providers.json`.
+
+## Context as a budget
+
+Long sessions degrade. The kit treats that as a measurable quantity, not a feeling: a session's context size is `input + cache_read + cache_creation` of its last request, and `agentkit context` prints it.
+
+- The lead never reads an implementer's transcript — only its report. The transcript goes to `.agentkit/state/runs/`.
+- One task must fit in one fresh context. If it does not, it is cut wrong.
+- State is written the moment it is learned, not at session end.
+- The lead rotates the session at ~60% of the window, by wrap → boot, rather than waiting to degrade.
+- Stability beats brevity: churn in always-loaded files invalidates the prompt cache and every later run pays full price.
+
+The kit itself costs about **2 000 tokens** at session start; the remaining ~15 000 load only on demand.
+
 ## Portability
 
 | | Claude Code | Cursor | AGENTS.md |
@@ -182,13 +252,14 @@ Memory deliberately lives in `.agentkit/state/` rather than inside a tool's fold
 
 ## Roadmap
 
+- Verified Cursor stream parsing (its schema is currently handled defensively — nobody has logged in yet to confirm it).
 - Generate `TEAM.md` from `config.json` instead of maintaining it by hand.
 - More languages: the content is fully parameterised, a language is a directory under `template/`.
 - Validate the core on a real project and remove whatever turns out to be ceremony.
 
 ## Status
 
-`0.2.0` — early. The structure is complete and tested, but the core has not yet been proven by shipping a real product with it. Expect the protocols to shrink once they meet actual work.
+`0.3.0` — early. The structure is complete and tested, but the core has not yet been proven by shipping a real product with it. Expect the protocols to shrink once they meet actual work.
 
 ## License
 

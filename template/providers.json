@@ -1,0 +1,133 @@
+{
+  "$comment": "Agents run only through subscription CLIs. Never put an API key here or in the environment: that path is metered and billed separately. Two accounts of the same vendor are separated by configDir, not by keys.",
+  "accounts": [
+    {
+      "id": "claude",
+      "provider": "claude-code",
+      "configDir": null
+    },
+    {
+      "id": "cursor",
+      "provider": "cursor",
+      "configDir": null
+    }
+  ],
+  "prefer": {
+    "code": [
+      "claude-code",
+      "cursor"
+    ],
+    "big-context": [
+      "claude-code"
+    ],
+    "plan-mode": [
+      "claude-code"
+    ],
+    "bulk": [
+      "cursor",
+      "claude-code"
+    ],
+    "images": [
+      "cursor"
+    ],
+    "worktree": [
+      "cursor",
+      "claude-code"
+    ],
+    "parallel": [
+      "claude-code",
+      "cursor"
+    ]
+  },
+  "roles": {
+    "architect": {
+      "needs": [
+        "code",
+        "big-context"
+      ]
+    },
+    "planner": {
+      "needs": [
+        "code"
+      ]
+    },
+    "domain-analyst": {
+      "needs": [
+        "code",
+        "big-context"
+      ]
+    },
+    "backend-dev": {
+      "needs": [
+        "code"
+      ]
+    },
+    "frontend-dev": {
+      "needs": [
+        "code"
+      ]
+    },
+    "mobile-dev": {
+      "needs": [
+        "code"
+      ]
+    },
+    "data-engineer": {
+      "needs": [
+        "code"
+      ]
+    },
+    "reports-dev": {
+      "needs": [
+        "code",
+        "bulk"
+      ]
+    },
+    "integrations-dev": {
+      "needs": [
+        "code"
+      ]
+    },
+    "qa-engineer": {
+      "needs": [
+        "code",
+        "bulk"
+      ]
+    },
+    "critic": {
+      "needs": [
+        "code",
+        "big-context"
+      ]
+    },
+    "security-auditor": {
+      "needs": [
+        "code",
+        "big-context"
+      ]
+    },
+    "integrator": {
+      "needs": [
+        "code"
+      ]
+    },
+    "scribe": {
+      "needs": [
+        "code"
+      ]
+    }
+  },
+  "limits": {
+    "estAgentRssMB": 1200,
+    "agentRssMB": 3000,
+    "reserveRamGB": 6,
+    "reserveDiskGB": 20,
+    "maxAgentMinutes": 20,
+    "loadPerCoreMax": 1.5,
+    "maxConcurrent": null
+  },
+  "context": {
+    "rotateAtPct": 60,
+    "reportMaxLines": 25
+  }
+}

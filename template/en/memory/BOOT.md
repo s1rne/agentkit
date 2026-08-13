@@ -19,13 +19,19 @@ Procedure for a **zero-context** session. Top to bottom, skipping nothing.
 4. `.agentkit/state/TEAM.md` — who's on the team, caps, reviewers.
 5. `.agentkit/state/RUNS.md` — recent launches.
 
-## 4. What to do
+## 4. What we can run with
+
+- `.agentkit/state/PROVIDERS.md` — which CLIs are logged in and what each adds. Refresh with
+  `agentkit providers`. Everything works on claude-code alone; the rest only adds capability.
+- `agentkit context` — how full this session already is, and how many agents the machine allows.
+
+## 5. What to do
 
 1. `.agentkit/INBOX.md` — new entries from the human, triage them.
 2. `.agentkit/QUESTIONS.md` — any answers to pending questions.
 3. `tasks/BOARD.md` — the board.
 
-## 5. Work
+## 6. Work
 
 Rules: `team-protocol`. The main session's role: `tech-lead`.
 

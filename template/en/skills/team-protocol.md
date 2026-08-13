@@ -20,10 +20,15 @@ implementer  → builds, reports in the task file   status: review
 qa-engineer  → tests (domain ones always theirs)
 critic       → adversarial review
 [risk: high] → human
+integrator   → merges the branch, keeps base green (isolated boxes only)
 scribe       → journal, NOW, board                status: done
 ```
 
 Skipping `critic` is not allowed. A review with no findings is a legitimate result; no review is not.
+
+Nothing is merged before the critic has passed, and merging is a task of its own rather than a
+side effect of closing one — otherwise branches pile up while every task reads as `done`. Work done
+in a `shared` box has no branch and skips the integration step. See `workspace-protocol`.
 
 ## How agents communicate
 

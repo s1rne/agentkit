@@ -18,7 +18,7 @@ Any condition failing means sequential.
 
 ## How many
 
-Computed by the `team-composition` algorithm; per-role caps live in `TEAM.md`. The global cap is **5**: beyond that nothing speeds up, because results must be stitched by hand and the lead loses track.
+Computed by the `team-composition` algorithm; per-role caps live in `TEAM.md`. The global cap is **5**: beyond that nothing speeds up, because results must be stitched by hand and the lead loses track. The machine imposes a second, independent cap — RAM, disk and load, printed by `agentkit context`. **The lower of the two always wins**; see `resource-limits`.
 
 ## How to launch
 

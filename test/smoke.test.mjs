@@ -273,3 +273,32 @@ test("adopt keeps a project's own agents instead of overwriting them", () => {
   assert.throws(() => run(["adopt"], dir));
   fs.rmSync(dir, { recursive: true, force: true });
 });
+
+test("a run's report lands in the task file, not only in the log", async () => {
+  const dir = tmp();
+  run(["init", "--lang", "ru", "--pack", "full"], dir);
+  const taskFile = path.join(dir, "tasks/tasks/T-0042-проверка.md");
+  fs.writeFileSync(taskFile, "---\nid: T-0042\ntitle: Проверка\nstatus: todo\n---\n\n## Зачем\n\nтекст\n");
+
+  const { appendReportToTask } = await import("../lib/orchestrator.mjs");
+  // The critic has no write tools, so its findings reach the author only if the
+  // orchestrator files them. That is the whole handoff.
+  const ok = appendReportToTask(dir, {
+    task: "T-0042", role: "critic", status: "done",
+    box: { branch: "ak/T-0042" },
+    summary: "НАЙДЕНО: healthcheck MinIO требует alias.",
+  }, "ru");
+  assert.equal(ok, true);
+  let text = fs.readFileSync(taskFile, "utf8");
+  assert.ok(text.includes("## Отчёты по запускам"));
+  assert.ok(text.includes("### critic"));
+  assert.ok(text.includes("healthcheck MinIO"));
+  assert.ok(text.includes("ak/T-0042"));
+  assert.ok(text.startsWith("---\nid: T-0042"), "frontmatter must survive");
+
+  appendReportToTask(dir, { task: "T-0042", role: "architect", status: "done", summary: "СДЕЛАНО: поправил." }, "ru");
+  text = fs.readFileSync(taskFile, "utf8");
+  assert.equal(text.match(/## Отчёты по запускам/g).length, 1, "one section, appended to");
+  assert.ok(text.indexOf("### critic") < text.indexOf("### architect"), "history reads top to bottom");
+  fs.rmSync(dir, { recursive: true, force: true });
+});

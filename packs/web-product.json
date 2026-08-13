@@ -1,5 +1,16 @@
 {
   "name": "web-product",
-  "description": "Веб-продукт: фронт, бэк, данные, безопасность, предметная область",
-  "roles": ["planner", "architect", "domain-analyst", "backend-dev", "frontend-dev", "data-engineer", "qa-engineer", "critic", "security-auditor", "scribe"]
+  "description": "Web product: frontend, backend, data, security, domain",
+  "roles": [
+    "planner",
+    "architect",
+    "domain-analyst",
+    "backend-dev",
+    "frontend-dev",
+    "data-engineer",
+    "qa-engineer",
+    "critic",
+    "security-auditor",
+    "scribe"
+  ]
 }

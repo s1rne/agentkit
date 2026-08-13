@@ -1,4 +1,4 @@
-# agent-kit
+# agentkit
 
 [English](README.md) · [Русский](README.ru.md)
 
@@ -19,7 +19,13 @@ yarn dlx @s1rne/agentkit init     # yarn
 bunx @s1rne/agentkit init         # bun
 ```
 
-> **Note on language.** The README is English, but the kit's content — roles, protocols, prompts — is currently written in Russian. An English content pack is planned for 0.2. See [Roadmap](#roadmap).
+Everything the kit installs — roles, protocols, prompts, memory templates — is **English by default**: fewer tokens per session and better model comprehension. Russian is one flag away:
+
+```bash
+npx @s1rne/agentkit init --lang ru
+```
+
+The language is stored in `config.json`; later commands pick it up without repeating the flag.
 
 ---
 
@@ -46,6 +52,7 @@ Three things break most often when building software with AI agents. This kit so
   roles/              13 roles
   skills/             11 protocols
   commands/           8 commands
+  blocks/             text of the managed blocks written into CLAUDE.md / AGENTS.md
   state/              memory: BOOT · NOW · JOURNAL · DECISIONS · TEAM · RUNS
   config.json
 tasks/                epics → features → tasks
@@ -134,14 +141,14 @@ Skipping the critic is not allowed. A review with no findings is a legitimate ou
 ## CLI
 
 ```bash
-npx @s1rne/agentkit init --pack web-product --adapters claude-code,cursor
+npx @s1rne/agentkit init --pack web-product --adapters claude-code,cursor --lang en
 npx @s1rne/agentkit sync        # regenerate tool configs from .agentkit/
 npx @s1rne/agentkit doctor      # check integrity
 npx @s1rne/agentkit status      # roster and current state
 npx @s1rne/agentkit role cap backend-dev 4
 ```
 
-Packs: `base` (6 roles) · `web-product` (10) · `full` (13).
+Packs: `base` (6 roles) · `web-product` (10) · `full` (13). Languages: `en` (default) · `ru`.
 
 **Edit `.agentkit/`, not the generated `.claude/` and `.cursor/`** — `sync` overwrites those.
 
@@ -175,13 +182,13 @@ Memory deliberately lives in `.agentkit/state/` rather than inside a tool's fold
 
 ## Roadmap
 
-- **English content pack.** Roles, protocols and prompts are currently Russian-only; `--lang en` is the next major item.
 - Generate `TEAM.md` from `config.json` instead of maintaining it by hand.
+- More languages: the content is fully parameterised, a language is a directory under `template/`.
 - Validate the core on a real project and remove whatever turns out to be ceremony.
 
 ## Status
 
-`0.1.0` — early. The structure is complete and tested, but the core has not yet been proven by shipping a real product with it. Expect the protocols to shrink once they meet actual work.
+`0.2.0` — early. The structure is complete and tested, but the core has not yet been proven by shipping a real product with it. Expect the protocols to shrink once they meet actual work.
 
 ## License
 

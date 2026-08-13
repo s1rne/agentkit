@@ -1,4 +1,4 @@
-# agent-kit
+# agentkit
 
 **Русский** · [English](README.md)
 
@@ -9,6 +9,14 @@ npx @s1rne/agentkit init
 ```
 
 Работает в **Claude Code**, **Cursor** и любом инструменте, читающем `AGENTS.md` (Codex и совместимые).
+
+Всё содержимое набора — роли, протоколы, промпты, шаблоны памяти — **по умолчанию английское**: меньше токенов на сессию и лучше понимание моделью. Русский включается флагом:
+
+```bash
+npx @s1rne/agentkit init --lang ru
+```
+
+Язык записывается в `config.json`, остальные команды подхватывают его без повторения флага.
 
 ---
 
@@ -33,8 +41,9 @@ npx @s1rne/agentkit init
   INBOX.md            ← пишет человек: мысли в свободной форме
   QUESTIONS.md        ← вопросы команды человеку и ответы
   roles/              13 ролей
-  skills/             10 протоколов
+  skills/             11 протоколов
   commands/           8 команд
+  blocks/             тексты управляемых блоков для CLAUDE.md / AGENTS.md
   state/              память: BOOT · NOW · JOURNAL · DECISIONS · TEAM · RUNS
   config.json
 tasks/                эпики → фичи → задачи
@@ -123,14 +132,14 @@ scribe       → журнал, NOW, доска                   done
 ## CLI
 
 ```bash
-npx @s1rne/agentkit init --pack web-product --adapters claude-code,cursor
+npx @s1rne/agentkit init --pack web-product --adapters claude-code,cursor --lang ru
 npx @s1rne/agentkit sync        # перегенерировать конфиги из .agentkit/
 npx @s1rne/agentkit doctor      # проверить целостность
 npx @s1rne/agentkit status      # штат и текущее состояние
 npx @s1rne/agentkit role cap backend-dev 4
 ```
 
-Паки: `base` (6 ролей) · `web-product` (10) · `full` (13).
+Паки: `base` (6 ролей) · `web-product` (10) · `full` (13). Языки: `en` (по умолчанию) · `ru`.
 
 **Правь `.agentkit/`, а не сгенерированные `.claude/` и `.cursor/`** — их затрёт `sync`.
 
@@ -159,6 +168,16 @@ npx @s1rne/agentkit role cap backend-dev 4
 6. Главная сессия — лид, а не исполнитель.
 7. Сессия заканчивается записью состояния. Не записанное для следующей сессии не существует.
 8. Работа не помечается как сделанная ИИ — ни в коммитах, ни в файлах, ни в метаданных.
+
+## Дорожная карта
+
+- Генерировать `TEAM.md` из `config.json`, а не вести руками.
+- Больше языков: содержимое полностью параметризовано, язык — это каталог в `template/`.
+- Проверить ядро на реальном проекте и выкинуть то, что окажется церемонией.
+
+## Статус
+
+`0.2.0` — ранняя версия. Конструкция целая и покрыта тестами, но ядро ещё не проверено выпуском реального продукта. Протоколы, скорее всего, ужмутся при встрече с настоящей работой.
 
 ## Лицензия
 

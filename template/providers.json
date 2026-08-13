@@ -118,8 +118,8 @@
     }
   },
   "limits": {
-    "estAgentRssMB": 1200,
-    "agentRssMB": 3000,
+    "estAgentRssMB": 2500,
+    "agentRssMB": 6000,
     "reserveRamGB": 6,
     "reserveDiskGB": 20,
     "maxAgentMinutes": 20,

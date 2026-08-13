@@ -58,9 +58,10 @@ test("maxConcurrency stays in range and shrinks with RAM", () => {
   const roomy = { cores: 14, perfCores: 10, ramTotalGB: 36, ramAvailGB: 30, diskFreeGB: 300, load1: 1, loadPerCore: 0.07 };
   const tight = { ...roomy, ramAvailGB: 7 };
   assert.equal(maxConcurrency(DEFAULT_LIMITS, roomy), 8, "capped by the hard ceiling");
-  // A real headless run peaked at 1.43 GB RSS, so the estimate is 1.2 GB, not 0.5.
-  assert.equal(maxConcurrency(DEFAULT_LIMITS, tight), 1, "(7 - 6) GB / 1.2 GB");
-  assert.equal(maxConcurrency(DEFAULT_LIMITS, { ...roomy, ramAvailGB: 16 }), 8, "(16 - 6) GB / 1.2 GB");
+  // A file-editing run peaked at 1.4 GB; one that installed deps and ran a build
+  // peaked at 4.5 GB. Admission assumes 2.5 GB — the heavier case.
+  assert.equal(maxConcurrency(DEFAULT_LIMITS, tight), 1, "(7 - 6) GB / 2.5 GB rounds to none, floor is 1");
+  assert.equal(maxConcurrency(DEFAULT_LIMITS, { ...roomy, ramAvailGB: 16 }), 4, "(16 - 6) GB / 2.5 GB");
   assert.equal(maxConcurrency(DEFAULT_LIMITS, { ...roomy, ramAvailGB: 6 }), 1, "never below 1");
 });
 

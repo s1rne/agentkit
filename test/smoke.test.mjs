@@ -397,3 +397,31 @@ test("the wave decides readiness, merges and knows when a conflict is not its bu
   assert.equal(g("status", "--porcelain").trim(), "", "после отказа дерево должно быть чистым");
   fs.rmSync(dir, { recursive: true, force: true });
 });
+
+test("project limits reach the run without being restated", async () => {
+  const dir = tmp();
+  const home = tmp();
+  process.env.AGENTKIT_HOME = home;
+  execFileSync("git", ["-C", dir, "init", "-q"], { cwd: dir });
+  execFileSync("git", ["-C", dir, "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-q", "--allow-empty", "-m", "x"]);
+  run(["init", "--pack", "full"], dir);
+  const pf = path.join(dir, ".agentkit/providers.json");
+  const providers = JSON.parse(fs.readFileSync(pf, "utf8"));
+  providers.limits.maxAgentMinutes = 45;
+  fs.writeFileSync(pf, JSON.stringify(providers, null, 2));
+
+  fs.writeFileSync(path.join(dir, "tasks/tasks/T-0050-долгая.md"),
+    "---\nid: T-0050\ntitle: Долгая\nstatus: todo\nowner: backend-dev\n---\n\n## Зачем\n\nx\n");
+
+  const { run: orchRun } = await import("../lib/orchestrator.mjs");
+  const cfg = JSON.parse(fs.readFileSync(path.join(dir, ".agentkit/config.json"), "utf8"));
+  // The caller passes no limits. Before this, the default 20-minute ceiling
+  // silently applied and killed agents at 20 minutes on a project set to 45.
+  const r = await orchRun(dir, { ...cfg, providers }, { task: "T-0050", dryRun: true });
+  assert.equal(r.status, "dry-run");
+  assert.equal(r.limits.maxAgentMinutes, 45, "the project's ceiling must reach the run");
+
+  delete process.env.AGENTKIT_HOME;
+  fs.rmSync(dir, { recursive: true, force: true });
+  fs.rmSync(home, { recursive: true, force: true });
+});

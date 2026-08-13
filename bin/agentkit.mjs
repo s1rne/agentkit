@@ -332,6 +332,7 @@ async function cmdRun() {
     parent: arg("parent", null),
     limits: { ...res.DEFAULT_LIMITS, ...pcfg.limits },
     dryRun: has("dry-run"),
+    priority: has("priority"),
   });
 
   let report = await attempt();

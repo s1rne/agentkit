@@ -128,3 +128,21 @@ test("an unknown or smaller model does not get a 1M context window", async () =>
   assert.equal(contextWindow("claude-haiku-4-5"), 200_000);
   assert.equal(contextWindow("something-new"), 200_000);
 });
+
+test("priority gets one reserved slot, never a weaker safety limit", async () => {
+  const { admits, DEFAULT_LIMITS, maxConcurrency } = await import("../lib/resources.mjs");
+  const roomy = { cores: 14, perfCores: 10, ramTotalGB: 36, ramAvailGB: 30, diskFreeGB: 300, load1: 1, loadPerCore: 0.07 };
+  const max = maxConcurrency(DEFAULT_LIMITS, roomy);
+
+  // At the cap: ordinary work waits, work with a queue behind it does not.
+  assert.equal(admits(max, DEFAULT_LIMITS, roomy).ok, false);
+  assert.equal(admits(max, DEFAULT_LIMITS, roomy, { priority: true }).ok, true);
+  // One reserved slot, not an open door.
+  assert.equal(admits(max + 1, DEFAULT_LIMITS, roomy, { priority: true }).ok, false);
+
+  // Priority moves the queue, never the machine's limits.
+  const starved = { ...roomy, ramAvailGB: 6.2 };
+  assert.equal(admits(0, DEFAULT_LIMITS, starved, { priority: true }).ok, false);
+  const fullDisk = { ...roomy, diskFreeGB: 5 };
+  assert.equal(admits(0, DEFAULT_LIMITS, fullDisk, { priority: true }).ok, false);
+});

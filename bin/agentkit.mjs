@@ -330,6 +330,113 @@ async function cmdRun() {
   process.exit(report.status === "done" ? 0 : 1);
 }
 
+// ─────────────────────────────── team
+
+const dur = (ms) => {
+  const s = Math.round(ms / 1000);
+  return s < 60 ? `${s}с` : `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+};
+const k = (n) => (n == null ? "—" : n >= 1000 ? `${Math.round(n / 1000)}k` : String(n));
+
+async function cmdTeam() {
+  const cfg = loadConfig(ROOT);
+  const t = messages(cfg.project?.language);
+  const { gather, detail } = await import("../lib/team.mjs");
+  const pcfg = providersConfig(ROOT);
+  const who = process.argv[3] && !process.argv[3].startsWith("--") ? process.argv[3] : null;
+
+  if (who) {
+    const d = detail(ROOT, who);
+    if (!d.live && !d.task) { err(`не нашёл ни запуска, ни задачи «${who}»`); process.exit(1); }
+    log(c.b(`\n  ${who}`), c.dim(d.task?.title ? `· ${d.task.title}` : ""));
+    log("");
+    if (d.live) {
+      log(`  ${c.g("работает")} ${d.live.role} · ${dur(d.live.elapsedMs)} · ${d.live.rssMB} МБ · ${k(d.live.tokens)} ток.`);
+      log(c.dim(`  бокс ${d.live.branch || "—"} · pid ${d.live.pid} · ${d.live.provider}`));
+    } else if (d.task) {
+      log(`  ${c.dim("статус")} ${d.task.status} · ${d.task.owner || "—"} · риск ${d.task.risk || "—"}`);
+    }
+    if (d.past.length) {
+      log("");
+      log(c.dim("  прошлые запуски"));
+      for (const r of d.past.slice(0, 6)) {
+        log(`    ${String(r.role).padEnd(14)} ${String(r.status).padEnd(9)} ${k(r.usage?.total).padStart(6)} ${c.dim(String(r.reason || "").slice(0, 48))}`);
+      }
+    }
+    if (d.verdict) {
+      log("");
+      log(c.dim("  последний вердикт критика"));
+      for (const line of d.verdict.split("\n").filter((x) => x.trim()).slice(-6)) log(`    ${line.slice(0, 110)}`);
+    }
+    log("");
+    return;
+  }
+
+  const draw = () => {
+    const g = gather(ROOT, pcfg);
+    const w = g.window;
+    const out = [];
+    out.push("");
+    out.push(
+      `  ${c.b(cfg.project?.name || "проект")}  ${c.dim(
+        `окно ${k(w.output)} · память ${g.capacity.ramAvailGB} из ${g.capacity.ramTotalGB} ГБ · мест ${g.active.length}/${g.slots}`
+      )}`
+    );
+    out.push("");
+
+    out.push(c.b(`  В РАБОТЕ ${g.active.length}`));
+    if (!g.active.length) out.push(c.dim("    никого"));
+    for (const a of g.active) {
+      out.push(
+        `    ${c.g("●")} ${String(a.task || a.runId).padEnd(9)} ${String(a.role).padEnd(14)} ${String(a.title || "").slice(0, 34).padEnd(35)} ${dur(a.elapsedMs).padStart(6)} ${String(a.rssMB) + "МБ"} ${k(a.tokens).padStart(6)}`
+      );
+      out.push(c.dim(`      ${a.branch || "—"} · ${a.provider}${a.depth ? ` · глубина ${a.depth}` : ""}`));
+    }
+
+    out.push("");
+    out.push(c.b(`  ГОТОВЫ ${g.ready.length}`) + c.dim(`  ·  ждут предшественника ${g.waiting.length}`));
+    for (const r of g.ready.slice(0, 5)) {
+      out.push(`    ${String(r.id).padEnd(9)} ${String(r.owner || "").padEnd(14)} ${String(r.title || "").slice(0, 50)}`);
+    }
+
+    if (g.forHuman.length) {
+      out.push("");
+      out.push(c.b(`  ${c.y("К ЧЕЛОВЕКУ")} ${g.forHuman.length}`) + c.dim("  приняты критиком, ждут решения"));
+      for (const r of g.forHuman) {
+        out.push(`    ${String(r.id).padEnd(9)} ${String(r.risk === "high" ? "риск" : "").padEnd(6)} ${String(r.title || "").slice(0, 56)}`);
+      }
+    }
+
+    out.push("");
+    out.push(c.b(`  В MAIN ${g.merged.length}`) + c.dim(`  из ${g.merged.length + g.forHuman.length + g.ready.length + g.waiting.length + g.active.length}`));
+
+    if (g.history.length) {
+      out.push("");
+      out.push(c.dim("  последнее"));
+      for (const h of g.history.slice(0, 5)) {
+        const mark = h.status === "done" ? c.g("✓") : h.status === "killed" || h.status === "failed" ? c.r("✗") : c.y("!");
+        out.push(
+          c.dim(
+            `    ${new Date(h.at).toISOString().slice(11, 16)} ${mark} ${String(h.task || h.runId).padEnd(9)} ${String(h.role).padEnd(13)} ${k(h.usage?.total).padStart(6)}`
+          )
+        );
+      }
+    }
+    out.push("");
+    return out.join("\n");
+  };
+
+  if (!has("watch")) { log(draw()); return; }
+
+  const tick = () => {
+    process.stdout.write("\x1b[2J\x1b[H");
+    process.stdout.write(draw() + "\n" + c.dim("  обновляется каждые 3 с · Ctrl+C выход\n"));
+  };
+  tick();
+  const timer = setInterval(tick, 3000);
+  process.on("SIGINT", () => { clearInterval(timer); process.stdout.write("\n"); process.exit(0); });
+}
+
 // ─────────────────────────────── adopt
 
 /**
@@ -650,6 +757,7 @@ else if (cmd === "run" || cmd === "spawn") await cmdRun();
 else if (cmd === "providers") await cmdProviders();
 else if (cmd === "account" || cmd === "accounts") await cmdAccount();
 else if (cmd === "adopt") await cmdAdopt();
+else if (cmd === "team" || cmd === "who") await cmdTeam();
 else if (cmd === "context") await cmdContext();
 else if (cmd === "usage") await cmdUsage();
 else if (cmd === "box") await cmdBox();

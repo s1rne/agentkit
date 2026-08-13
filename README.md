@@ -170,6 +170,16 @@ agentkit box list       # open boxes, branches, uncommitted work
 
 **Everything works on Claude Code alone.** Cursor only adds capability. A capability nobody has blocks *one task* — recorded with the exact command that would fix it — and never stops the wave.
 
+## Seeing what the team is doing
+
+```bash
+agentkit team            # one screen: who is running, on what, at what cost
+agentkit team --watch    # the same, refreshing every 3 seconds
+agentkit team T-0019     # one agent in detail: elapsed, memory, tokens, last verdict
+```
+
+It reads only what is already on disk — the active-run registry, finished run records, task frontmatter — so polling it is free and starts nothing.
+
 ## Adopting a project that already has agents
 
 `init` writes the kit's templates over `.claude/`. A project that already built its own team — its own roles, in its own language, with its own domain rules — would lose them. `adopt` goes the other way:
@@ -269,7 +279,7 @@ Memory deliberately lives in `.agentkit/state/` rather than inside a tool's fold
 
 ## Status
 
-`0.4.0` — early. The structure is complete and tested, but the core has not yet been proven by shipping a real product with it. Expect the protocols to shrink once they meet actual work.
+`0.5.0` — early. The structure is complete and tested, but the core has not yet been proven by shipping a real product with it. Expect the protocols to shrink once they meet actual work.
 
 ## License
 

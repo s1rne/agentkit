@@ -170,6 +170,16 @@ agentkit box list       # open boxes, branches, uncommitted work
 
 **Everything works on Claude Code alone.** Cursor only adds capability. A capability nobody has blocks *one task* — recorded with the exact command that would fix it — and never stops the wave.
 
+## Adopting a project that already has agents
+
+`init` writes the kit's templates over `.claude/`. A project that already built its own team — its own roles, in its own language, with its own domain rules — would lose them. `adopt` goes the other way:
+
+```bash
+npx @s1rne/agentkit adopt --lang ru
+```
+
+It backs up `.claude/` untouched, makes the existing agents, skills, commands and memory the **source** in `.agentkit/`, adds only what the project did not already have, and regenerates `.claude/` from that. Existing definitions come through byte for byte.
+
 ## Two accounts of the same vendor
 
 Two subscriptions are two logins, never two API keys. Adding one:
@@ -259,7 +269,7 @@ Memory deliberately lives in `.agentkit/state/` rather than inside a tool's fold
 
 ## Status
 
-`0.3.0` — early. The structure is complete and tested, but the core has not yet been proven by shipping a real product with it. Expect the protocols to shrink once they meet actual work.
+`0.4.0` — early. The structure is complete and tested, but the core has not yet been proven by shipping a real product with it. Expect the protocols to shrink once they meet actual work.
 
 ## License
 

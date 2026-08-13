@@ -330,6 +330,104 @@ async function cmdRun() {
   process.exit(report.status === "done" ? 0 : 1);
 }
 
+// ─────────────────────────────── adopt
+
+/**
+ * Take over a project that already has a hand-built `.claude/` and make it the
+ * source instead of overwriting it. `init` would replace domain-specific agents
+ * with generic templates; this keeps them and adds only what is missing.
+ */
+async function cmdAdopt() {
+  const lang = arg("lang", "en");
+  const t = messages(LANGS.includes(lang) ? lang : "en");
+  const dest = path.join(ROOT, ".agentkit");
+  const claude = path.join(ROOT, ".claude");
+  const tpl = (...p) => path.join(PKG, "template", lang, ...p);
+
+  log(c.b("\n  agentkit adopt"), c.dim(`· ${lang}\n`));
+
+  if (!fs.existsSync(claude)) {
+    err("nothing to adopt: there is no .claude/ here. Use: agentkit init");
+    process.exit(1);
+  }
+  if (fs.existsSync(dest) && !has("force")) {
+    err(".agentkit already exists — adopting again would overwrite it. Pass --force if that is what you want.");
+    process.exit(1);
+  }
+
+  // A copy of what was there before anything is generated over it.
+  const stamp = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
+  const backup = path.join(ROOT, `.claude.before-agentkit-${stamp}`);
+  copyTree(claude, backup);
+  ok(`backup: ${path.basename(backup)}`);
+
+  // Existing definitions become the source of truth.
+  const moved = { roles: 0, skills: 0, commands: 0, state: 0 };
+  for (const [from, to, key] of [
+    ["agents", "roles", "roles"],
+    ["commands", "commands", "commands"],
+  ]) {
+    const src = path.join(claude, from);
+    for (const f of readDir(src)) {
+      if (copyIfAbsent(path.join(src, f), path.join(dest, to, f))) moved[key]++;
+    }
+  }
+  // Claude Code keeps a skill as <name>/SKILL.md; the kit keeps it as <name>.md.
+  const skillsDir = path.join(claude, "skills");
+  if (fs.existsSync(skillsDir)) {
+    for (const e of fs.readdirSync(skillsDir, { withFileTypes: true })) {
+      const file = e.isDirectory() ? path.join(skillsDir, e.name, "SKILL.md") : path.join(skillsDir, e.name);
+      if (!fs.existsSync(file)) continue;
+      const name = e.isDirectory() ? e.name : e.name.replace(/\.md$/, "");
+      if (copyIfAbsent(file, path.join(dest, "skills", `${name}.md`))) moved.skills++;
+    }
+  }
+  for (const f of readDir(path.join(claude, "state"))) {
+    if (copyIfAbsent(path.join(claude, "state", f), path.join(dest, "state", f))) moved.state++;
+  }
+  ok(`adopted: ${moved.roles} roles · ${moved.skills} skills · ${moved.commands} commands · ${moved.state} memory files`);
+
+  // Only what the project does not already have is added.
+  let added = 0;
+  for (const d of ["roles", "skills", "commands"]) {
+    for (const f of readDir(tpl(d))) if (copyIfAbsent(tpl(d, f), path.join(dest, d, f))) added++;
+  }
+  copyTree(tpl("blocks"), path.join(dest, "blocks"));
+  for (const f of readDir(tpl("memory"))) copyIfAbsent(tpl("memory", f), path.join(dest, "state", f));
+  for (const f of readDir(tpl("human"))) copyIfAbsent(tpl("human", f), path.join(dest, f));
+  for (const f of readDir(tpl("docs", "adr"))) copyIfAbsent(tpl("docs", "adr", f), path.join(ROOT, "docs", "adr", f));
+  for (const f of readDir(tpl("tasks"))) copyIfAbsent(tpl("tasks", f), path.join(ROOT, "tasks", f));
+  for (const d of ["epics", "features", "tasks", "done"]) fs.mkdirSync(path.join(ROOT, "tasks", d), { recursive: true });
+  copyIfAbsent(path.join(PKG, "template", "providers.json"), path.join(dest, "providers.json"));
+  ensureGitignore(ROOT, [".agentkit/state/runs/", ".agentkit/state/.providers-cache.json"]);
+  ok(`added from the ${lang} templates: ${added} files the project did not have`);
+
+  // Everything found is enabled: it was already in use before we arrived.
+  const roles = {};
+  for (const f of readDir(path.join(dest, "roles"))) {
+    const { data } = parseFront(fs.readFileSync(path.join(dest, "roles", f), "utf8"));
+    const name = data.name || f.replace(/\.md$/, "");
+    roles[name] = { enabled: true, cap: data.cap ?? 1 };
+  }
+  const adapters = arg("adapters", "claude-code").split(",").map((x) => x.trim());
+  write(
+    path.join(dest, "config.json"),
+    JSON.stringify(
+      { $schema: "./schema.json", version: 1, pack: "adopted", adapters, project: { name: path.basename(ROOT), language: lang }, roles },
+      null,
+      2
+    ) + "\n"
+  );
+  ok(`config: ${Object.keys(roles).length} roles, all enabled`);
+
+  await cmdSync(true);
+  log(c.b("\n  Adopted.\n"));
+  log("  Your own agents and skills are now the source in " + c.b(".agentkit/") + ";");
+  log("  " + c.b(".claude/") + " is generated from them and will be overwritten by sync.");
+  log(c.dim(`  If anything is missing, the untouched original is in ${path.basename(backup)}`));
+  log("");
+}
+
 // ─────────────────────────────── account
 
 async function cmdAccount() {
@@ -551,6 +649,7 @@ else if (cmd === "role") cmdRole();
 else if (cmd === "run" || cmd === "spawn") await cmdRun();
 else if (cmd === "providers") await cmdProviders();
 else if (cmd === "account" || cmd === "accounts") await cmdAccount();
+else if (cmd === "adopt") await cmdAdopt();
 else if (cmd === "context") await cmdContext();
 else if (cmd === "usage") await cmdUsage();
 else if (cmd === "box") await cmdBox();

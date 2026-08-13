@@ -274,3 +274,18 @@ test("summary is a short report that ends on the claude-code-alone promise", () 
   assert.ok(text.length < 1600, `too long: ${text.length}`);
   assert.ok(summary({}).includes("claude-code alone"), "an empty probe result still renders");
 });
+
+test("cursor surfaces a rate limit even though it emits no event for it", () => {
+  const hit = cursor.parseStream(
+    JSON.stringify({ type: "result", subtype: "error", is_error: true, result: "Rate limit exceeded, try again later" })
+  );
+  assert.equal(hit.ok, false);
+  // Claude Code has rate_limit_event; this CLI has only the wording, and without
+  // reading it the account rotation would never take a spent login out.
+  assert.equal(hit.rateLimit.status, "exceeded");
+
+  const ordinary = cursor.parseStream(
+    JSON.stringify({ type: "result", subtype: "error", is_error: true, result: "file not found" })
+  );
+  assert.equal(ordinary.rateLimit, null, "an ordinary failure must not rest the account");
+});

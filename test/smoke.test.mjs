@@ -236,3 +236,40 @@ test("the skills route launches through the guarded runner", () => {
     fs.rmSync(dir, { recursive: true, force: true });
   }
 });
+
+test("adopt keeps a project's own agents instead of overwriting them", () => {
+  const dir = tmp();
+  // A project that built its own team by hand, in its own language and domain.
+  fs.mkdirSync(path.join(dir, ".claude/agents"), { recursive: true });
+  fs.mkdirSync(path.join(dir, ".claude/skills/domain-rules"), { recursive: true });
+  fs.mkdirSync(path.join(dir, ".claude/state"), { recursive: true });
+  const mine = "---\nname: backend-dev\ndescription: Пишет модули core-api\ntools: Read, Write, Edit, Bash\ngroup: Реализация\ncap: 4\n---\n\nКаждая таблица содержит tenant_id, на каждой включён RLS.\n";
+  fs.writeFileSync(path.join(dir, ".claude/agents/backend-dev.md"), mine);
+  fs.writeFileSync(path.join(dir, ".claude/skills/domain-rules/SKILL.md"), "---\nname: domain-rules\ndescription: Правила предметной области\n---\n\nКПВ не участвует в GPA.\n");
+  fs.writeFileSync(path.join(dir, ".claude/state/JOURNAL.md"), "# JOURNAL\n\nнаша история\n");
+
+  const out = run(["adopt", "--lang", "ru"], dir);
+  assert.match(out, /backup:/);
+
+  // The hand-written definition is now the source, byte for byte.
+  assert.equal(fs.readFileSync(path.join(dir, ".agentkit/roles/backend-dev.md"), "utf8"), mine);
+  const generated = fs.readFileSync(path.join(dir, ".claude/agents/backend-dev.md"), "utf8");
+  assert.ok(generated.includes("tenant_id"), "the domain body must survive regeneration");
+  assert.ok(generated.includes("Пишет модули core-api"));
+
+  // Its own skill and memory survive; the kit's additions arrive alongside.
+  assert.ok(fs.existsSync(path.join(dir, ".agentkit/skills/domain-rules.md")));
+  assert.match(fs.readFileSync(path.join(dir, ".agentkit/state/JOURNAL.md"), "utf8"), /наша история/);
+  for (const s of ["workspace-protocol", "provider-routing", "resource-limits", "context-budget"]) {
+    assert.ok(fs.existsSync(path.join(dir, ".agentkit/skills", `${s}.md`)), `missing ${s}`);
+  }
+  assert.ok(fs.existsSync(path.join(dir, ".agentkit/providers.json")));
+
+  // The untouched original stays recoverable.
+  const backup = fs.readdirSync(dir).find((f) => f.startsWith(".claude.before-agentkit-"));
+  assert.equal(fs.readFileSync(path.join(dir, backup, "agents/backend-dev.md"), "utf8"), mine);
+
+  // A second adopt must not silently overwrite what is now the source.
+  assert.throws(() => run(["adopt"], dir));
+  fs.rmSync(dir, { recursive: true, force: true });
+});

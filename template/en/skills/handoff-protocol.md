@@ -8,6 +8,14 @@ description: How an agent hands off work — the mandatory report format in the 
 Work isn't done until the report in the task file is filled in.
 
 ```markdown
+## Only the runner touches the task file
+
+Your report is your final message, not an edit. The runner files it into the task
+file, in the base branch, for every role — including the ones with no write tools
+at all. Edit the task file yourself while working in a separate copy and the merge
+produces a history conflict of the task with itself: one file appended from two
+sides.
+
 ## Report
 
 **Status:** done / partially done / blocked

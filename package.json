@@ -1,0 +1,11 @@
+{
+  "name": "agentkit",
+  "version": "0.1.0",
+  "description": "Команда ИИ-агентов, память и процессы разработки — разворачивается в любом проекте одной командой",
+  "type": "module",
+  "bin": { "agentkit": "./bin/agentkit.mjs" },
+  "files": ["bin", "lib", "template", "packs", "README.md"],
+  "engines": { "node": ">=18" },
+  "license": "MIT",
+  "keywords": ["ai-agents", "claude-code", "cursor", "codex", "agent-team", "context-engineering"]
+}

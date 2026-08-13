@@ -1,0 +1,5 @@
+{
+  "name": "full",
+  "description": "Всё: плюс мобильное, интеграции, отчётность",
+  "roles": ["planner", "architect", "domain-analyst", "backend-dev", "frontend-dev", "mobile-dev", "data-engineer", "reports-dev", "integrations-dev", "qa-engineer", "critic", "security-auditor", "scribe"]
+}

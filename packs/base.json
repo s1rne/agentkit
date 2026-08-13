@@ -1,0 +1,5 @@
+{
+  "name": "base",
+  "description": "Минимальный состав для любого софтверного проекта",
+  "roles": ["planner", "architect", "backend-dev", "qa-engineer", "critic", "scribe"]
+}

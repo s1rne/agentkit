@@ -379,7 +379,9 @@ async function cmdTeam() {
     out.push("");
     out.push(
       `  ${c.b(cfg.project?.name || "проект")}  ${c.dim(
-        `окно ${k(w.output)} · память ${g.capacity.ramAvailGB} из ${g.capacity.ramTotalGB} ГБ · мест ${g.active.length}/${g.slots}`
+        `окно ${k(w.output)} · память ${g.capacity.ramAvailGB} из ${g.capacity.ramTotalGB} ГБ · мест ${g.active.length}/${g.slots}${
+          g.elsewhere ? ` · ещё ${g.elsewhere} в других проектах` : ""
+        }`
       )}`
     );
     out.push("");

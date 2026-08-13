@@ -1,7 +1,7 @@
 {
   "name": "agent-kit",
   "version": "0.1.0",
-  "description": "Команда ИИ-агентов, память проекта и инженерные процессы — разворачиваются в любом репозитории одной командой. Claude Code, Cursor, AGENTS.md.",
+  "description": "A team of AI agents, project memory and engineering process — deployed into any repository with one command. Claude Code, Cursor, AGENTS.md.",
   "keywords": [
     "ai-agents",
     "agent-team",
@@ -40,6 +40,7 @@
     "template",
     "packs",
     "README.md",
+    "README.ru.md",
     "LICENSE"
   ],
   "engines": {

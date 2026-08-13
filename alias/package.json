@@ -1,7 +1,7 @@
 {
   "name": "@s1rne/agentkit",
   "version": "0.1.0",
-  "description": "Алиас пакета agent-kit — команда ИИ-агентов и память проекта в любом репозитории.",
+  "description": "Alias for agent-kit — a team of AI agents and project memory in any repository.",
   "keywords": [
     "ai-agents",
     "agent-team",

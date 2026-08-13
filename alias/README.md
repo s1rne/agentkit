@@ -1,9 +1,9 @@
 # @s1rne/agentkit
 
-Алиас пакета [`agent-kit`](https://www.npmjs.com/package/agent-kit). Вся логика и документация там.
+Alias for [`agent-kit`](https://www.npmjs.com/package/agent-kit). All the logic and documentation live there.
 
 ```bash
 npx @s1rne/agentkit init
 ```
 
-Имя `agentkit` в npm занято чужой заглушкой, поэтому основной пакет называется `agent-kit`, а этот скоуп существует для тех, кто помнит короткое имя.
+The short name `agentkit` is taken on npm by an unrelated placeholder, so the main package is `agent-kit`. This scoped alias exists for people who remember the short name.

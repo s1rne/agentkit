@@ -129,5 +129,15 @@
   "context": {
     "rotateAtPct": 60,
     "reportMaxLines": 25
+  },
+  "wave": {
+    "$comment": "How the wave runs: what verifies the base branch after a merge, and when to stop against the subscription window.",
+    "verify": [
+      "pnpm -s typecheck",
+      "pnpm -s lint",
+      "pnpm -s test"
+    ],
+    "outputBudget": 4000000,
+    "maxAttempts": 3
   }
 }

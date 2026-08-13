@@ -359,6 +359,109 @@ async function cmdRun() {
   process.exit(report.status === "done" ? 0 : 1);
 }
 
+// ─────────────────────────────── wave
+
+async function cmdWave() {
+  const cfg = loadConfig(ROOT);
+  const pcfg = providersConfig(ROOT);
+  const w = await import("../lib/wave.mjs");
+  const res = await import("../lib/resources.mjs");
+  const { collisions } = await import("../lib/team.mjs");
+
+  const CONC = Number(arg("conc", pcfg.limits?.maxConcurrent || res.maxConcurrency({ ...res.DEFAULT_LIMITS, ...pcfg.limits })));
+  const MAX = Number(arg("max", 99));
+  const BUDGET = Number(arg("budget", pcfg.wave?.outputBudget || 4_000_000));
+  const verifyCmds = arg("verify", null) ? [arg("verify")] : pcfg.wave?.verify || [];
+
+  // Один экземпляр на проект: два берут одни задачи и дерутся за места.
+  const lock = path.join(ROOT, ".agentkit", "state", ".wave.lock");
+  fs.mkdirSync(path.dirname(lock), { recursive: true });
+  if (fs.existsSync(lock)) {
+    const prev = Number(fs.readFileSync(lock, "utf8").trim());
+    try {
+      process.kill(prev, 0);
+      err(`Волна уже идёт (pid ${prev}). Остановить: kill ${prev}`);
+      process.exit(1);
+    } catch {}
+  }
+  fs.writeFileSync(lock, String(process.pid), "utf8");
+  const release = () => { try { fs.unlinkSync(lock); } catch {} };
+  process.on("exit", release);
+
+  const inFlight = new Map();
+  const attempts = new Map();
+  const results = [];
+  let started = 0;
+  let stopping = false;
+
+  const stamp = () => new Date().toISOString().slice(11, 19);
+  const say = (m) => log(`${c.dim(stamp())} ${m}`);
+
+  for (const sig of ["SIGINT", "SIGTERM", "SIGHUP"]) {
+    process.on(sig, () => {
+      if (stopping) return;
+      stopping = true;
+      say(c.y(`⏹ остановка по ${sig}: ${inFlight.size} задач вернутся в очередь`));
+      release();
+      setTimeout(() => process.exit(130), 1500);
+    });
+  }
+
+  const { windowUsage } = await import("../lib/usage.mjs");
+
+  async function pump() {
+    while (!stopping && started < MAX && inFlight.size < CONC) {
+      const spent = windowUsage().totals.output;
+      if (spent > BUDGET) {
+        say(c.y(`⏸ окно подписки: ${spent.toLocaleString("ru")} из ${BUDGET.toLocaleString("ru")} — новых задач не беру`));
+        return;
+      }
+      const list = w.ready(ROOT, loadTasks());
+      const busyIds = [...inFlight.keys()];
+      const busy = loadTasks().filter((t) => busyIds.includes(t.data.id));
+      const queue = list.filter((t) => !busyIds.includes(t.data.id) && (attempts.get(t.data.id) || 0) < 3);
+      if (!queue.length) return;
+
+      // Две задачи в одном пакете дают не конфликт слияния, а два замысла.
+      const t = queue.find((cand) => !busy.some((b) => collisions([{ id: cand.data.id, touches: cand.data.touches }, { id: b.data.id, touches: b.data.touches }]).length));
+      if (!t) { say(c.dim(`⏳ ${queue[0].data.id} пересекается с работающей — жду`)); return; }
+
+      started++;
+      attempts.set(t.data.id, (attempts.get(t.data.id) || 0) + 1);
+      say(`— беру ${c.b(t.data.id)} (в очереди ${queue.length}, в работе ${inFlight.size + 1})`);
+      const p = w
+        .carry(ROOT, { ...cfg, providers: pcfg }, t, { log: say, attempts, verifyCmds })
+        .then((r) => {
+          if (r.deferred) { started--; attempts.set(r.id, (attempts.get(r.id) || 1) - 1); }
+          else results.push(r);
+          return r;
+        })
+        .finally(() => inFlight.delete(t.data.id));
+      inFlight.set(t.data.id, p);
+    }
+  }
+
+  function loadTasks() {
+    const dir = path.join(ROOT, "tasks", "tasks");
+    return readDir(dir).map((f) => {
+      const file = path.join(dir, f);
+      const { data, body } = parseFront(fs.readFileSync(file, "utf8"));
+      return { file, data, body };
+    }).filter((t) => t.data.id).sort((a, b) => (a.data.id > b.data.id ? 1 : -1));
+  }
+
+  log(c.b("\n  agentkit wave"), c.dim(`· до ${CONC} одновременно · потолок окна ${BUDGET.toLocaleString("ru")}\n`));
+  await pump();
+  while (inFlight.size && !stopping) {
+    await Promise.race([...inFlight.values()]);
+    await pump();
+  }
+  release();
+  log("");
+  say(results.length ? `итог: ${results.map((r) => `${r.id} — ${r.result}`).join(" · ")}` : "очередь пуста, брать нечего");
+  log("");
+}
+
 // ─────────────────────────────── team
 
 const dur = (ms) => {
@@ -809,6 +912,7 @@ else if (cmd === "providers") await cmdProviders();
 else if (cmd === "account" || cmd === "accounts") await cmdAccount();
 else if (cmd === "adopt") await cmdAdopt();
 else if (cmd === "team" || cmd === "who") await cmdTeam();
+else if (cmd === "wave") await cmdWave();
 else if (cmd === "context") await cmdContext();
 else if (cmd === "usage") await cmdUsage();
 else if (cmd === "box") await cmdBox();

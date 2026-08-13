@@ -352,3 +352,48 @@ test("a task's declared risk decides its box, even when the caller forgets", asy
   fs.rmSync(dir, { recursive: true, force: true });
   fs.rmSync(home, { recursive: true, force: true });
 });
+
+test("the wave decides readiness, merges and knows when a conflict is not its business", async () => {
+  const dir = tmp();
+  execFileSync("git", ["-C", dir, "init", "-q"], { cwd: dir });
+  const g = (...a) => execFileSync("git", ["-C", dir, "-c", "user.email=t@t", "-c", "user.name=t", ...a], { encoding: "utf8" });
+  g("commit", "-q", "--allow-empty", "-m", "base");
+  run(["init", "--pack", "full"], dir);
+  g("add", "-A"); g("commit", "-q", "-m", "kit");
+
+  const w = await import("../lib/wave.mjs");
+  const mk = (id, extra = "") =>
+    fs.writeFileSync(path.join(dir, `tasks/tasks/${id}.md`), `---\nid: ${id}\ntitle: ${id}\nstatus: todo\n${extra}---\n\n## Зачем\n\nx\n`);
+
+  mk("T-0001");
+  mk("T-0002", "blocked_by: T-0001\n");
+  // A dependency that is merely accepted is not available: a box is branched
+  // from the base branch and would not contain its work.
+  let all = w.ready(dir, [
+    { file: "", data: { id: "T-0001", status: "review" }, body: "" },
+    { file: "", data: { id: "T-0002", status: "todo", blocked_by: "T-0001" }, body: "" },
+  ]);
+  assert.deepEqual(all.map((t) => t.data.id), []);
+
+  // A real branch with real work merges, and the task history is unioned.
+  g("checkout", "-q", "-b", "ak/T-0007");
+  fs.writeFileSync(path.join(dir, "feature.txt"), "работа\n");
+  g("add", "-A"); g("commit", "-q", "-m", "работа");
+  g("checkout", "-q", "main");
+  const ok = w.mergeBranch(dir, "T-0007", "проверка");
+  assert.equal(ok.ok, true, ok.why);
+  assert.ok(fs.existsSync(path.join(dir, "feature.txt")));
+
+  // A conflict in code is not merged by rule — it is handed on.
+  g("checkout", "-q", "-b", "ak/T-0008");
+  fs.writeFileSync(path.join(dir, "feature.txt"), "их версия\n");
+  g("add", "-A"); g("commit", "-q", "-m", "их");
+  g("checkout", "-q", "main");
+  fs.writeFileSync(path.join(dir, "feature.txt"), "наша версия\n");
+  g("add", "-A"); g("commit", "-q", "-m", "наша");
+  const bad = w.mergeBranch(dir, "T-0008", "столкновение");
+  assert.equal(bad.ok, false);
+  assert.equal(bad.needsIntegrator, true, "конфликт в коде обязан уйти дальше, а не быть сведён правилом");
+  assert.equal(g("status", "--porcelain").trim(), "", "после отказа дерево должно быть чистым");
+  fs.rmSync(dir, { recursive: true, force: true });
+});

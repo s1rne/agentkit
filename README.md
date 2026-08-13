@@ -170,6 +170,23 @@ agentkit box list       # open boxes, branches, uncommitted work
 
 **Everything works on Claude Code alone.** Cursor only adds capability. A capability nobody has blocks *one task* — recorded with the exact command that would fix it — and never stops the wave.
 
+## Running the whole queue
+
+```bash
+agentkit wave                 # takes ready tasks and carries each one end to end
+agentkit wave --conc 2 --max 8
+```
+
+Per task: implementer → critic → for `risk: high` a second, differently-tasked reviewer (`security-auditor`) → merge → the project's own checks on the base branch. A merge that turns the base branch red is reverted immediately, because one bad merge is cheaper to unpick than ten.
+
+It stops for a human only where a machine honestly cannot decide: a conflict of intent in code (not history, not a lockfile — those it resolves), a review that has not converged in three passes, a base branch that fails its own checks. Everything else is the runner's job, not yours.
+
+What it verifies after each merge is yours to set, in `.agentkit/providers.json`:
+
+```json
+"wave": { "verify": ["pnpm -s typecheck", "pnpm -s lint", "pnpm -s test"], "outputBudget": 4000000 }
+```
+
 ## Seeing what the team is doing
 
 ```bash
@@ -279,7 +296,7 @@ Memory deliberately lives in `.agentkit/state/` rather than inside a tool's fold
 
 ## Status
 
-`0.5.0` — early. The structure is complete and tested, but the core has not yet been proven by shipping a real product with it. Expect the protocols to shrink once they meet actual work.
+`0.7.0` — early. The structure is complete and tested, but the core has not yet been proven by shipping a real product with it. Expect the protocols to shrink once they meet actual work.
 
 ## License
 

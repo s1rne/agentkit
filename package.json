@@ -1,5 +1,5 @@
 {
-  "name": "agent-kit",
+  "name": "@s1rne/agentkit",
   "version": "0.1.0",
   "description": "A team of AI agents, project memory and engineering process — deployed into any repository with one command. Claude Code, Cursor, AGENTS.md.",
   "keywords": [
@@ -27,8 +27,8 @@
   },
   "type": "module",
   "bin": {
-    "agent-kit": "bin/agentkit.mjs",
-    "agentkit": "bin/agentkit.mjs"
+    "agentkit": "bin/agentkit.mjs",
+    "agent-kit": "bin/agentkit.mjs"
   },
   "exports": {
     "./bin/agentkit.mjs": "./bin/agentkit.mjs",

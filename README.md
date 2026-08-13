@@ -5,7 +5,7 @@
 A team of AI agents, project memory and engineering process — deployed into any repository with one command.
 
 ```bash
-npx agent-kit init
+npx @s1rne/agentkit init
 ```
 
 Works with **Claude Code**, **Cursor**, and any tool that reads `AGENTS.md` (Codex and compatible).
@@ -13,10 +13,10 @@ Works with **Claude Code**, **Cursor**, and any tool that reads `AGENTS.md` (Cod
 Any package manager:
 
 ```bash
-npx agent-kit init          # npm
-pnpm dlx agent-kit init     # pnpm
-yarn dlx agent-kit init     # yarn
-bunx agent-kit init         # bun
+npx @s1rne/agentkit init          # npm
+pnpm dlx @s1rne/agentkit init     # pnpm
+yarn dlx @s1rne/agentkit init     # yarn
+bunx @s1rne/agentkit init         # bun
 ```
 
 > **Note on language.** The README is English, but the kit's content — roles, protocols, prompts — is currently written in Russian. An English content pack is planned for 0.2. See [Roadmap](#roadmap).
@@ -134,11 +134,11 @@ Skipping the critic is not allowed. A review with no findings is a legitimate ou
 ## CLI
 
 ```bash
-npx agent-kit init --pack web-product --adapters claude-code,cursor
-npx agent-kit sync        # regenerate tool configs from .agentkit/
-npx agent-kit doctor      # check integrity
-npx agent-kit status      # roster and current state
-npx agent-kit role cap backend-dev 4
+npx @s1rne/agentkit init --pack web-product --adapters claude-code,cursor
+npx @s1rne/agentkit sync        # regenerate tool configs from .agentkit/
+npx @s1rne/agentkit doctor      # check integrity
+npx @s1rne/agentkit status      # roster and current state
+npx @s1rne/agentkit role cap backend-dev 4
 ```
 
 Packs: `base` (6 roles) · `web-product` (10) · `full` (13).

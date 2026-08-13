@@ -27,8 +27,8 @@
   },
   "type": "module",
   "bin": {
-    "agent-kit": "./bin/agentkit.mjs",
-    "agentkit": "./bin/agentkit.mjs"
+    "agent-kit": "bin/agentkit.mjs",
+    "agentkit": "bin/agentkit.mjs"
   },
   "exports": {
     "./bin/agentkit.mjs": "./bin/agentkit.mjs",

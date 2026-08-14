@@ -289,3 +289,24 @@ test("cursor surfaces a rate limit even though it emits no event for it", () => 
   );
   assert.equal(ordinary.rateLimit, null, "an ordinary failure must not rest the account");
 });
+
+test("a run cut off mid-response keeps its work and names a real reason", () => {
+  const stream = [
+    JSON.stringify({ type: "assistant", message: { content: [{ type: "text", text: "Разбор источников: расхождение первое — " }] } }),
+    JSON.stringify({ type: "assistant", message: { content: [{ type: "text", text: "договора нет, идёт конкурс." }] } }),
+    JSON.stringify({
+      type: "result", subtype: "success", is_error: true,
+      result: "API Error: Connection closed mid-response. The response above may be incomplete.",
+      usage: { input_tokens: 10, output_tokens: 5 },
+    }),
+  ].join("\n");
+  const r = claudeCode.parseStream(stream);
+  assert.equal(r.ok, false);
+  // Four hundred thousand tokens of analysis must not be replaced by its epitaph.
+  assert.match(r.text, /расхождение первое/);
+  assert.match(r.text, /идёт конкурс/);
+  assert.equal(r.partial, true);
+  // "success" as a failure reason is nonsense; the real cause is in the error text.
+  assert.match(r.error, /Connection closed/);
+  assert.doesNotMatch(r.error, /^success$/);
+});

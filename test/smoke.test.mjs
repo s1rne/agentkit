@@ -425,3 +425,32 @@ test("project limits reach the run without being restated", async () => {
   fs.rmSync(dir, { recursive: true, force: true });
   fs.rmSync(home, { recursive: true, force: true });
 });
+
+test("a task's copy catches up with the base branch before work starts", async () => {
+  const dir = tmp();
+  execFileSync("git", ["-C", dir, "init", "-q"], { cwd: dir });
+  const g = (...a) => execFileSync("git", ["-C", dir, "-c", "user.email=t@t", "-c", "user.name=t", ...a], { encoding: "utf8" });
+  g("commit", "-q", "--allow-empty", "-m", "base");
+  run(["init", "--pack", "full"], dir);
+  g("add", "-A"); g("commit", "-q", "-m", "kit");
+
+  const w = await import("../lib/wave.mjs");
+  const box = path.join(dir, "..", `box-${path.basename(dir)}`);
+  g("worktree", "add", "-q", "-b", "ak/T-0060", box);
+
+  // The base branch moves on; the copy does not notice by itself.
+  fs.writeFileSync(path.join(dir, "contract.ts"), "export const v = 2;\n");
+  g("add", "-A"); g("commit", "-q", "-m", "контракт изменился");
+  assert.ok(!fs.existsSync(path.join(box, "contract.ts")), "копия ещё не видит новый контракт");
+
+  const r = w.refresh(dir, "T-0060", "main");
+  assert.equal(r.ok, true);
+  assert.equal(r.refreshed, true);
+  assert.ok(fs.existsSync(path.join(box, "contract.ts")), "после подтягивания копия видит проект");
+
+  // Nothing to catch up on the second time.
+  assert.equal(w.refresh(dir, "T-0060", "main").behind, 0);
+
+  execFileSync("git", ["-C", dir, "worktree", "remove", "--force", box]);
+  fs.rmSync(dir, { recursive: true, force: true });
+});

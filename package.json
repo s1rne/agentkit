@@ -1,6 +1,6 @@
 {
   "name": "@s1rne/agentkit",
-  "version": "0.8.0",
+  "version": "0.9.0",
   "description": "A team of AI agents, project memory and engineering process — deployed into any repository with one command. Claude Code, Cursor, AGENTS.md.",
   "keywords": [
     "ai-agents",

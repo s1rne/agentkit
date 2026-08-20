@@ -358,7 +358,7 @@ Memory deliberately lives in `.agentkit/state/` rather than inside a tool's fold
 
 ## Status
 
-`0.7.0` — early. The structure is complete and tested, but the core has not yet been proven by shipping a real product with it. Expect the protocols to shrink once they meet actual work.
+`0.9.0` — early. The structure is complete and tested, and the queue now carries an ordinary task end to end, but the core has not yet been proven by shipping a real product with it. Expect the protocols to shrink once they meet actual work.
 
 ## License
 

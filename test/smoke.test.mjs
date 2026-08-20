@@ -491,6 +491,10 @@ test("an ordinary task finishes where it worked: in the working directory, witho
   process.env.AGENTKIT_HOME = home;
   execFileSync("git", ["-C", dir, "init", "-q"], { cwd: dir });
   const g = (...a) => execFileSync("git", ["-C", dir, "-c", "user.email=t@t", "-c", "user.name=t", ...a], { encoding: "utf8" });
+  // The library commits here itself, so the repository needs its own identity:
+  // a machine with none configured is a normal machine, not a broken one.
+  g("config", "user.email", "t@t");
+  g("config", "user.name", "t");
   g("commit", "-q", "--allow-empty", "-m", "base");
 
   const w = await import("../lib/wave.mjs");

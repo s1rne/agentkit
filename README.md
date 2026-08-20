@@ -212,6 +212,24 @@ agentkit team T-0019     # one agent in detail: elapsed, memory, tokens, last ve
 
 It reads only what is already on disk — the active-run registry, finished run records, task frontmatter — so polling it is free and starts nothing.
 
+## From your own code
+
+The CLI is one caller of the library, not the only way in. A service that drives several repositories imports what it needs:
+
+```js
+import { run } from "@s1rne/agentkit/orchestrator";
+import { carry, ready, eventLog } from "@s1rne/agentkit/wave";
+import { pick, summary } from "@s1rne/agentkit/accounts";
+import { probeAll, route } from "@s1rne/agentkit/providers";
+import { gather } from "@s1rne/agentkit/team";
+
+const report = await run(root, cfg, { task: "T-12", wait: true });
+```
+
+Subpaths: `/orchestrator`, `/wave`, `/accounts`, `/providers`, `/boxes`, `/resources`, `/team`, `/usage`. The package root re-exports all of them as namespaces, plus `run`, `carry` and `ready` directly. Everything outside that list is private and changes without notice.
+
+Nothing there reads global state or throws for an expected condition: `run()` takes the root and the config as arguments, a refusal comes back as a status with a reason, and `probeAll()` never raises.
+
 ## Adopting a project that already has agents
 
 `init` writes the kit's templates over `.claude/`. A project that already built its own team — its own roles, in its own language, with its own domain rules — would lose them. `adopt` goes the other way:

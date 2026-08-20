@@ -31,6 +31,15 @@
     "agent-kit": "bin/agentkit.mjs"
   },
   "exports": {
+    ".": "./lib/index.mjs",
+    "./orchestrator": "./lib/orchestrator.mjs",
+    "./wave": "./lib/wave.mjs",
+    "./accounts": "./lib/accounts.mjs",
+    "./providers": "./lib/providers/index.mjs",
+    "./boxes": "./lib/boxes.mjs",
+    "./resources": "./lib/resources.mjs",
+    "./team": "./lib/team.mjs",
+    "./usage": "./lib/usage.mjs",
     "./bin/agentkit.mjs": "./bin/agentkit.mjs",
     "./package.json": "./package.json"
   },

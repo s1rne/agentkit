@@ -576,3 +576,32 @@ test("the wave reports its progress as events, not only its verdict", async () =
   execFileSync("git", ["-C", dir, "worktree", "remove", "--force", box]);
   fs.rmSync(dir, { recursive: true, force: true });
 });
+
+test("agentkit can be called as a library, not only run as a command", async () => {
+  const PKG = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+  const pkg = JSON.parse(fs.readFileSync(path.join(PKG, "package.json"), "utf8"));
+
+  // Every declared path exists; a map that promises a file nobody shipped is
+  // worse than no map at all.
+  for (const [sub, target] of Object.entries(pkg.exports)) {
+    assert.ok(fs.existsSync(path.join(PKG, target)), `${sub} → ${target}`);
+  }
+
+  // And Node's own resolver agrees: an undeclared subpath fails here, so this
+  // is the check that would have caught lib/ being unreachable from outside.
+  const dir = tmp();
+  fs.mkdirSync(path.join(dir, "node_modules", "@s1rne"), { recursive: true });
+  fs.symlinkSync(PKG, path.join(dir, "node_modules", "@s1rne", "agentkit"), "dir");
+  const out = execFileSync("node", ["--input-type=module", "-e", `
+    import { run } from "@s1rne/agentkit/orchestrator";
+    import { pick, summary } from "@s1rne/agentkit/accounts";
+    import { probeAll, route } from "@s1rne/agentkit/providers";
+    import { carry, ready } from "@s1rne/agentkit/wave";
+    import * as kit from "@s1rne/agentkit";
+    console.log([run, pick, summary, probeAll, route, carry, ready].every((f) => typeof f === "function"));
+    console.log(typeof kit.team.gather === "function" && typeof kit.resources.capacity === "function");
+  `], { cwd: dir, encoding: "utf8" });
+  assert.equal(out.trim(), "true\ntrue", out);
+
+  fs.rmSync(dir, { recursive: true, force: true });
+});

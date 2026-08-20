@@ -454,3 +454,27 @@ test("a task's copy catches up with the base branch before work starts", async (
   execFileSync("git", ["-C", dir, "worktree", "remove", "--force", box]);
   fs.rmSync(dir, { recursive: true, force: true });
 });
+
+test("a task that depends on nothing says so with an empty field, not with a task named null", async () => {
+  const { parseFront } = await import("../lib/util.mjs");
+  for (const written of ["null", "~", ""]) {
+    const { data } = parseFront(`---\nid: T-0001\nstatus: todo\nblocked_by: ${written}\n---\nтело`);
+    assert.equal(data.blocked_by, null, `blocked_by: ${JSON.stringify(written)}`);
+  }
+
+  const dir = tmp();
+  execFileSync("git", ["-C", dir, "init", "-q"], { cwd: dir });
+  const g = (...a) => execFileSync("git", ["-C", dir, "-c", "user.email=t@t", "-c", "user.name=t", ...a], { encoding: "utf8" });
+  g("commit", "-q", "--allow-empty", "-m", "base");
+
+  // The planner writes `blocked_by: null` by itself for the first task of an
+  // order. Read as a string it became a dependency on a task called "null",
+  // nothing was ever ready, and the wave printed "the queue is empty".
+  const w = await import("../lib/wave.mjs");
+  const all = [
+    { file: "", data: { id: "T-0001", status: "todo", blocked_by: null }, body: "" },
+    { file: "", data: { id: "T-0002", status: "todo", blocked_by: "T-0001" }, body: "" },
+  ];
+  assert.deepEqual(w.ready(dir, all).map((t) => t.data.id), ["T-0001"]);
+  fs.rmSync(dir, { recursive: true, force: true });
+});

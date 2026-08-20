@@ -146,3 +146,88 @@ test("priority gets one reserved slot, never a weaker safety limit", async () =>
   const fullDisk = { ...roomy, diskFreeGB: 5 };
   assert.equal(admits(0, DEFAULT_LIMITS, fullDisk, { priority: true }).ok, false);
 });
+
+/** A cgroup hierarchy on disk, as the kernel would lay it out. */
+function fakeCgroup(files) {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "ak-cg-"));
+  for (const [rel, text] of Object.entries(files)) {
+    const f = path.join(dir, rel);
+    fs.mkdirSync(path.dirname(f), { recursive: true });
+    fs.writeFileSync(f, text, "utf8");
+  }
+  return dir;
+}
+
+test("in a container the limit is the container's, not the machine's", () => {
+  const GB = 1024 ** 3;
+  const dir = fakeCgroup({
+    "memory.max": `${4 * GB}\n`,
+    "memory.current": `${2 * GB}\n`,
+    // Half of what is "used" is page cache the kernel gives back under pressure.
+    "memory.stat": `anon 1073741824\ninactive_file ${GB}\nslab 0\n`,
+    "cpu.max": "200000 100000\n",
+  });
+  withEnv({ AGENTKIT_CGROUP_ROOT: dir }, () => {
+    const cap = capacity(dir);
+    assert.equal(cap.dedicated, true, "the limit came from a cgroup");
+    assert.equal(cap.ramTotalGB, 4, "the host's 64 GB are none of our business");
+    assert.equal(cap.ramAvailGB, 3, "4 GB, 2 GB used, 1 GB of that reclaimable cache");
+    assert.ok(cap.perfCores <= 2, `cpu.max grants two cores, got ${cap.perfCores}`);
+
+    // The whole point: four gigabytes hold one agent of ~2.5 GB, not eight.
+    // Eight was what the host's free memory suggested, and the OOM killer then
+    // took them out one by one — which looked like runs failing at random.
+    assert.equal(maxConcurrency(DEFAULT_LIMITS, cap), 1);
+    const gate = admits(0, DEFAULT_LIMITS, cap);
+    assert.equal(gate.ok, false, "and it says so instead of starting one anyway");
+    assert.match(gate.reason, /^RAM: 3 GB available/);
+  });
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test("where nobody shares the memory, nothing is reserved for a human", () => {
+  const GB = 1024 ** 3;
+  const dir = fakeCgroup({
+    "memory.max": `${8 * GB}\n`,
+    "memory.current": `${GB}\n`,
+    "memory.stat": "inactive_file 0\n",
+    "cpu.max": "400000 100000\n",
+  });
+  withEnv({ AGENTKIT_CGROUP_ROOT: dir }, () => {
+    const cap = capacity(dir);
+    // Six gigabytes are held back for an editor and a browser on a laptop. Held
+    // back inside an eight-gigabyte container they would leave room for nobody,
+    // and the fleet would refuse every run forever.
+    assert.equal(maxConcurrency(DEFAULT_LIMITS, cap), 2);
+    const gate = admits(0, DEFAULT_LIMITS, cap);
+    assert.ok(gate.ok || !/^RAM/.test(gate.reason), gate.reason);
+  });
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test("cgroup v1, and an unlimited cgroup, are read correctly too", () => {
+  const GB = 1024 ** 3;
+  const v1 = fakeCgroup({
+    "memory/memory.limit_in_bytes": `${16 * GB}\n`,
+    "memory/memory.usage_in_bytes": `${GB}\n`,
+    "memory/memory.stat": "inactive_file 0\n",
+    "cpu/cpu.cfs_quota_us": "800000\n",
+    "cpu/cpu.cfs_period_us": "100000\n",
+  });
+  withEnv({ AGENTKIT_CGROUP_ROOT: v1 }, () => {
+    const cap = capacity(v1);
+    assert.equal(cap.ramTotalGB, 16);
+    assert.equal(cap.ramAvailGB, 15);
+    assert.equal(maxConcurrency(DEFAULT_LIMITS, cap), 5, "(15 - 1) GB over 2.5 GB an agent");
+  });
+  fs.rmSync(v1, { recursive: true, force: true });
+
+  // "max" is how v2 spells "no limit": fall back to what the machine reports.
+  const none = fakeCgroup({ "memory.max": "max\n", "memory.current": "12345\n", "cpu.max": "max 100000\n" });
+  withEnv({ AGENTKIT_CGROUP_ROOT: none }, () => {
+    const cap = capacity(none);
+    assert.equal(cap.dedicated, false);
+    assert.equal(cap.ramTotalGB, Math.round((os.totalmem() / 1024 ** 3) * 100) / 100);
+  });
+  fs.rmSync(none, { recursive: true, force: true });
+});

@@ -48,6 +48,7 @@
     "lib",
     "template",
     "packs",
+    "CHANGELOG.md",
     "README.md",
     "README.ru.md",
     "LICENSE"

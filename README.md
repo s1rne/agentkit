@@ -212,6 +212,20 @@ agentkit team T-0019     # one agent in detail: elapsed, memory, tokens, last ve
 
 It reads only what is already on disk — the active-run registry, finished run records, task frontmatter — so polling it is free and starts nothing.
 
+### One flag for a program
+
+`status`, `providers`, `team`, `box`, `context` and `usage` take `--json` and print what they already computed, with no colour, no padding and no wording:
+
+```console
+$ agentkit providers --json
+{"probedAt":"…","riskyEnv":[],"providers":{…},"accounts":[{"id":"claude-1","state":"ready","windowTokens":184000,…}]}
+
+$ agentkit box --json
+[{"taskId":"T-12","mode":"worktree","branch":"ak/T-12","sizeMB":240,"dirty":true,"ahead":3}]
+```
+
+A dashboard parsing the human output breaks on a rephrasing, on `--lang`, on a column that got wider — and freezes the readable output as an interface nobody may improve. The wave has its own stream: `.agentkit/state/runs/wave-<time>.jsonl`.
+
 ## From your own code
 
 The CLI is one caller of the library, not the only way in. A service that drives several repositories imports what it needs:

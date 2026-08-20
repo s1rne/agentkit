@@ -27,6 +27,45 @@ function arg(name, def) {
 }
 const has = (f) => process.argv.includes(`--${f}`);
 
+/**
+ * Машинно-читаемый вывод.
+ *
+ * Напечатанное рассчитано на человека: цвет, выравнивание пробелами, слова на
+ * языке проекта. Сервису, который вынужден это разбирать, ломает разбор смена
+ * формулировки, смена языка и ширина колонки — а нам такой разбор запрещает
+ * менять то, что специально делалось удобным для чтения. Поэтому наружу
+ * отдаётся то же самое, что уже посчитано, без оформления.
+ */
+const json = (data) => log(JSON.stringify(data, null, 2));
+
+/** Задачи по статусам — та же доска, только числами. */
+function taskCounts(root) {
+  const out = {};
+  for (const sub of ["epics", "features", "tasks", "done"]) {
+    const dir = path.join(root, "tasks", sub);
+    for (const f of readDir(dir)) {
+      const { data } = parseFront(fs.readFileSync(path.join(dir, f), "utf8"));
+      if (!data.id) continue;
+      const status = String(data.status || "unknown");
+      out[status] = (out[status] || 0) + 1;
+    }
+  }
+  return out;
+}
+
+/** Задача без тела: наблюдателю нужны поля, а не текст задачи целиком. */
+const briefTask = (t) =>
+  t && {
+    id: t.id,
+    title: t.title ?? null,
+    status: t.status ?? null,
+    owner: t.owner ?? null,
+    risk: t.risk ?? null,
+    blocked_by: t.blocked_by ?? null,
+    touches: [].concat(t.touches || []),
+    file: t.file ?? null,
+  };
+
 /** Language of an existing install, overridable by --lang. English by default. */
 function resolveLang(fallback) {
   const flag = arg("lang", null);
@@ -253,23 +292,41 @@ async function cmdDoctor() {
 function cmdStatus() {
   const cfg = loadConfig(ROOT);
   const t = messages(cfg.project?.language);
+  const roles = activeRoles(ROOT, cfg);
+  const off = Object.entries(cfg.roles || {}).filter(([, v]) => v.enabled === false).map(([k]) => k);
+
+  const now = path.join(ROOT, ".agentkit", "state", "NOW.md");
+  const nowLine = fs.existsSync(now)
+    ? fs.readFileSync(now, "utf8").split("\n").find((l) => l.startsWith("**") || (l.trim() && !l.startsWith("#") && !l.startsWith(">"))) || null
+    : null;
+
+  if (has("json")) {
+    return json({
+      project: cfg.project?.name ?? null,
+      language: cfg.project?.language ?? null,
+      pack: cfg.pack ?? null,
+      adapters: cfg.adapters ?? [],
+      roles: roles.map((r) => ({
+        name: r.name,
+        group: r.data.group ?? null,
+        cap: r.cfg.cap ?? r.data.cap ?? 1,
+      })),
+      disabled: off,
+      tasks: taskCounts(ROOT),
+      now: nowLine ? nowLine.replace(/\*\*/g, "").trim() : null,
+    });
+  }
+
   log(c.b(`\n  ${cfg.project?.name || t.project}`), c.dim(t.statusMeta(cfg.pack, cfg.adapters.join(", ")) + "\n"));
 
-  const roles = activeRoles(ROOT, cfg);
   const byGroup = {};
   for (const r of roles) (byGroup[r.data.group || "—"] ||= []).push(r);
   for (const [g, list] of Object.entries(byGroup)) {
     log(c.dim(`  ${g}`));
     for (const r of list) log(`    ${r.name.padEnd(18)} ${c.dim(t.capUpTo(r.cfg.cap ?? r.data.cap ?? 1))}`);
   }
-  const off = Object.entries(cfg.roles || {}).filter(([, v]) => v.enabled === false).map(([k]) => k);
   if (off.length) log(c.dim(`\n  ${t.disabled(off.join(", "))}`));
-
-  const now = path.join(ROOT, ".agentkit", "state", "NOW.md");
-  if (fs.existsSync(now)) {
-    const line = fs.readFileSync(now, "utf8").split("\n").find((l) => l.startsWith("**") || (l.trim() && !l.startsWith("#") && !l.startsWith(">")));
-    if (line) log(c.dim("\n  " + t.nowLabel) + line.replace(/\*\*/g, "").trim().slice(0, 90));
-  }
+  if (nowLine) log(c.dim("\n  " + t.nowLabel) + nowLine.replace(/\*\*/g, "").trim().slice(0, 90));
   log("");
 }
 
@@ -497,6 +554,10 @@ async function cmdTeam() {
 
   if (who) {
     const d = detail(ROOT, who);
+    if (has("json")) {
+      if (!d.live && !d.task) { err(`не нашёл ни запуска, ни задачи «${who}»`); process.exit(1); }
+      return json({ live: d.live || null, task: briefTask(d.task), past: d.past, verdict: d.verdict });
+    }
     if (!d.live && !d.task) { err(`не нашёл ни запуска, ни задачи «${who}»`); process.exit(1); }
     log(c.b(`\n  ${who}`), c.dim(d.task?.title ? `· ${d.task.title}` : ""));
     log("");
@@ -520,6 +581,24 @@ async function cmdTeam() {
     }
     log("");
     return;
+  }
+
+  if (has("json")) {
+    const g = gather(ROOT, pcfg);
+    // `tasks` — это Map с телами задач: наблюдателю нужны срезы, а не архив.
+    return json({
+      project: cfg.project?.name ?? null,
+      capacity: g.capacity,
+      slots: g.slots,
+      window: g.window,
+      active: g.active,
+      elsewhere: g.elsewhere,
+      ready: g.ready.map(briefTask),
+      waiting: g.waiting.map(briefTask),
+      forHuman: g.forHuman.map(briefTask),
+      merged: g.merged.map(briefTask),
+      history: g.history,
+    });
   }
 
   const draw = () => {
@@ -782,16 +861,22 @@ async function cmdProviders() {
   const t = messages(cfg.project?.language);
   const { probeAll, summary } = await import("../lib/providers/index.mjs");
   const { riskyEnvPresent } = await import("../lib/env.mjs");
-
-  log(c.b(`\n  ${t.providersHeader}\n`));
+  const acc = await import("../lib/accounts.mjs");
 
   const risky = riskyEnvPresent();
-  if (risky.length) err(t.riskyEnv(risky.join(", ")));
-
   const res = await probeAll({
     accounts: providersConfig(ROOT).accounts,
     cacheFile: path.join(ROOT, ".agentkit", "state", ".providers-cache.json"),
+    ...(has("json") ? { ttlMs: 0 } : {}),
   });
+
+  if (has("json")) {
+    // Здесь лежат пределы и логины — то, ради чего сервис вообще спрашивает.
+    return json({ probedAt: res.probedAt, riskyEnv: risky, providers: res.providers, accounts: acc.summary(ROOT, res) });
+  }
+
+  log(c.b(`\n  ${t.providersHeader}\n`));
+  if (risky.length) err(t.riskyEnv(risky.join(", ")));
 
   const label = { ready: t.providersReady, "not-logged-in": t.providersNotLoggedIn, absent: t.providersAbsent, metered: t.providersMetered };
   for (const [id, p] of Object.entries(res.providers)) {
@@ -847,8 +932,21 @@ async function cmdContext() {
   const u = await import("../lib/usage.mjs");
   const res = await import("../lib/resources.mjs");
 
-  log(c.b(`\n  ${t.contextHeader}\n`));
   const ctx = u.currentContext(ROOT);
+  if (has("json")) {
+    const cap = res.capacity(ROOT);
+    const limits = { ...res.DEFAULT_LIMITS, ...providersConfig(ROOT).limits };
+    return json({
+      context: ctx || null,
+      rotateAtPct: providersConfig(ROOT).context?.rotateAtPct ?? 60,
+      capacity: cap,
+      limits,
+      maxConcurrent: res.maxConcurrency(limits, cap),
+      admits: res.admits(0, limits, cap),
+    });
+  }
+
+  log(c.b(`\n  ${t.contextHeader}\n`));
   if (!ctx) warn(t.contextNoData);
   else {
     const line = t.contextLine(u.fmt(ctx.tokens), u.fmt(ctx.window), ctx.pct);
@@ -871,6 +969,8 @@ async function cmdUsage() {
   const cfg = loadConfig(ROOT);
   const t = messages(cfg.project?.language);
   const u = await import("../lib/usage.mjs");
+  if (has("json")) return json({ window: u.windowUsage(), today: u.today() });
+
   log(c.b(`\n  ${t.usageHeader}\n`));
 
   for (const [title, data] of [[t.usageWindow, u.windowUsage()], [t.usageToday, u.today()]]) {
@@ -894,6 +994,15 @@ async function cmdBox() {
   const t = messages(cfg.project?.language);
   const boxes = await import("../lib/boxes.mjs");
   const sub = process.argv[3] || "list";
+
+  if (has("json")) {
+    if (sub !== "gc") return json(boxes.list(ROOT));
+    const orch0 = await import("../lib/orchestrator.mjs");
+    const busy = orch0.activeRuns(ROOT).map((r) => r.task || r.runId);
+    const r = boxes.gc(ROOT, { keepDays: Number(arg("keep-days", 7)), force: has("force"), busy });
+    return json({ ...r, transcripts: orch0.pruneRuns(ROOT) });
+  }
+
   log(c.b(`\n  ${t.boxesHeader}\n`));
 
   if (sub === "gc") {

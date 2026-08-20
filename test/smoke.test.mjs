@@ -605,3 +605,49 @@ test("agentkit can be called as a library, not only run as a command", async () 
 
   fs.rmSync(dir, { recursive: true, force: true });
 });
+
+test("every reporting command can answer a program, not only a person", () => {
+  const dir = tmp();
+  execFileSync("git", ["-C", dir, "init", "-q"], { cwd: dir });
+  execFileSync("git", ["-C", dir, "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-q", "--allow-empty", "-m", "x"]);
+  run(["init", "--pack", "full", "--lang", "ru"], dir);
+  fs.writeFileSync(path.join(dir, "tasks/tasks/T-0001.md"),
+    "---\nid: T-0001\ntitle: Первая\nstatus: todo\nowner: backend-dev\nblocked_by: null\ntouches: [src/api.ts]\n---\n\n## Зачем\n\nx\n");
+  fs.writeFileSync(path.join(dir, "tasks/tasks/T-0002.md"),
+    "---\nid: T-0002\ntitle: Вторая\nstatus: review\nowner: backend-dev\nblocked_by: T-0001\n---\n\n## Зачем\n\nx\n");
+
+  const parsed = (args) => {
+    const out = run(args, dir);
+    // Colour and column padding are for a human; a machine gets neither.
+    assert.ok(!/\x1b\[/.test(out), `${args.join(" ")} printed escape codes`);
+    return JSON.parse(out);
+  };
+
+  const status = parsed(["status", "--json"]);
+  assert.equal(status.pack, "full");
+  assert.equal(status.language, "ru");
+  assert.deepEqual(status.tasks, { todo: 1, review: 1 });
+  assert.ok(status.roles.some((r) => r.name === "critic" && typeof r.cap === "number"));
+
+  const team = parsed(["team", "--json"]);
+  assert.deepEqual(team.ready.map((t) => t.id), ["T-0001"], "and it is ready: blocked_by was empty");
+  assert.deepEqual(team.forHuman.map((t) => t.id), ["T-0002"]);
+  assert.equal(typeof team.slots, "number");
+  assert.equal(typeof team.capacity.ramAvailGB, "number");
+  // The whole task body would drown the answer; the fields are what is wanted.
+  assert.ok(!("body" in team.ready[0]), Object.keys(team.ready[0]).join(","));
+
+  const providers = parsed(["providers", "--json"]);
+  assert.match(providers.probedAt, /^\d{4}-/);
+  assert.ok("claude-code" in providers.providers);
+  assert.ok(Array.isArray(providers.accounts));
+  assert.ok(Array.isArray(providers.riskyEnv));
+
+  assert.deepEqual(parsed(["box", "--json"]), []);
+  assert.equal(typeof parsed(["context", "--json"]).maxConcurrent, "number");
+  assert.equal(typeof parsed(["usage", "--json"]).window.totals.output, "number");
+
+  // The Russian install still speaks Russian to its human.
+  assert.match(run(["status"], dir), /[А-Яа-я]/);
+  fs.rmSync(dir, { recursive: true, force: true });
+});

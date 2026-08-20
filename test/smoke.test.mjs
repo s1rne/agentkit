@@ -478,3 +478,45 @@ test("a task that depends on nothing says so with an empty field, not with a tas
   assert.deepEqual(w.ready(dir, all).map((t) => t.data.id), ["T-0001"]);
   fs.rmSync(dir, { recursive: true, force: true });
 });
+
+test("an ordinary task finishes where it worked: in the working directory, without a branch", async () => {
+  const dir = tmp();
+  const home = tmp();
+  process.env.AGENTKIT_HOME = home;
+  execFileSync("git", ["-C", dir, "init", "-q"], { cwd: dir });
+  const g = (...a) => execFileSync("git", ["-C", dir, "-c", "user.email=t@t", "-c", "user.name=t", ...a], { encoding: "utf8" });
+  g("commit", "-q", "--allow-empty", "-m", "base");
+
+  const w = await import("../lib/wave.mjs");
+  const boxes = await import("../lib/boxes.mjs");
+
+  // One writer on a normal task gets the shared box: no branch is ever created.
+  assert.equal(boxes.decideMode({ writers: 1, risk: "normal", kind: "normal" }).mode, "shared");
+  boxes.create(dir, "T-0001", "shared");
+
+  fs.writeFileSync(path.join(dir, "dupes.py"), "print('готово')\n");
+  const m = w.mergeBranch(dir, "T-0001", "Поиск дубликатов", { mode: "shared" });
+  assert.equal(m.ok, true, m.why);
+  assert.equal(m.inPlace, true, "сливать нечего — работа уже в рабочем каталоге");
+  assert.equal(g("status", "--porcelain").trim(), "", "работа обязана быть зафиксирована");
+  assert.match(g("log", "-1", "--format=%s"), /Поиск дубликатов/);
+
+  // And it counts as done for everything that waits on it.
+  assert.equal(w.merged(dir, "T-0001"), true);
+  const all = [
+    { file: "", data: { id: "T-0001", status: "done" }, body: "" },
+    { file: "", data: { id: "T-0002", status: "todo", blocked_by: "T-0001" }, body: "" },
+  ];
+  assert.deepEqual(w.ready(dir, all).map((t) => t.data.id), ["T-0002"]);
+
+  // A sandbox is the one case that has no branch and no work in the repository
+  // either: it lies outside version control, so a rule must not claim it merged.
+  boxes.create(dir, "T-0003", "sandbox");
+  const s = w.mergeBranch(dir, "T-0003", "Опасная");
+  assert.equal(s.ok, false);
+  assert.equal(s.needsIntegrator, true);
+
+  delete process.env.AGENTKIT_HOME;
+  fs.rmSync(dir, { recursive: true, force: true });
+  fs.rmSync(home, { recursive: true, force: true });
+});

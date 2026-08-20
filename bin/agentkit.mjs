@@ -741,7 +741,8 @@ async function cmdAccount() {
     return;
   }
   for (const r of rows) {
-    const line = `${String(r.id).padEnd(12)} ${r.provider.padEnd(12)} ${String(r.email || "—").padEnd(26)} ${
+    const who = r.email || (r.loginPath === "token" ? "token from the environment" : "—");
+    const line = `${String(r.id).padEnd(12)} ${r.provider.padEnd(12)} ${String(who).padEnd(26)} ${
       r.windowTokens ? Math.round(r.windowTokens / 1000) + "k this window" : "idle"
     }`;
     if (r.duplicateOf) err(`${line}  ${r.hint}`);

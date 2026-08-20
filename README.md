@@ -228,6 +228,21 @@ What separates the logins differs by vendor, and it was measured rather than ass
 
 Work goes to whichever login has spent the least in the current subscription window — not round-robin, because one task can cost ten times another. A run that comes back rate-limited or unauthenticated puts that login to rest for the window and retries once on another; never in a loop.
 
+### Logging in without a browser
+
+There are two ways into the same Claude subscription, and both are read as a subscription:
+
+| Path | What `claude auth status` reports | When |
+|---|---|---|
+| browser login | `authMethod: claude.ai`, plus your address and plan | on your own machine |
+| `CLAUDE_CODE_OAUTH_TOKEN` | `authMethod: oauth_token`, no address, no plan name | in a container, on a server, in CI |
+
+`claude setup-token` issues the token; it needs Pro/Max/Team/Enterprise and can do nothing but call the model, so it is never the metered path and is never stripped from a child process. It is the only way to bring an agent up where nobody can open a browser.
+
+One caveat, verified: `claude auth status` does not check the token against the server — an expired or mistyped one still reports `loggedIn: true`. It fails on the first real run instead, and the account bookkeeping takes that login out of rotation for the window.
+
+A token lives in the environment, which every config directory shares, so **it cannot be used to run two logins**: accounts pointing at one token are marked as one login, exactly as two rows with the same address are.
+
 ## Where agents work
 
 Every task gets a **box**, chosen by the lead and written into the task file:

@@ -187,6 +187,21 @@ What it verifies after each merge is yours to set, in `.agentkit/providers.json`
 "wave": { "verify": ["pnpm -s typecheck", "pnpm -s lint", "pnpm -s test"], "outputBudget": 4000000 }
 ```
 
+### Following it from outside
+
+The wave writes one JSON object per line to `.agentkit/state/runs/wave-<time>.jsonl` — the same stream the terminal prints, in a shape a program can read:
+
+```jsonl
+{"at":"…","task":"T-12","stage":"impl","event":"started","role":"backend-dev","attempt":1}
+{"at":"…","task":"T-12","stage":"impl","event":"finished","ok":true,"account":"claude-1","tokens":184000}
+{"at":"…","task":"T-12","stage":"critic","event":"verdict","accepted":false,"attempt":1}
+{"at":"…","task":"T-12","stage":"merge","event":"conflict","files":["src/api.ts"],"needsIntegrator":true}
+```
+
+Stages are `refresh`, `impl`, `critic`, `audit`, `merge`, `verify`; events are `started`, `finished`, `verdict`, `deferred`, `conflict`, `reverted`. `--events <file>` sends them somewhere else.
+
+From your own code, `carry()` takes an `onEvent` callback and the same objects arrive there. Polling the task files is not a substitute: it lags, and it cannot see the middle — a task half an hour in `in_progress` says nothing about whether the implementer is still writing, the critic is already reading, or the whole thing is stuck.
+
 ## Seeing what the team is doing
 
 ```bash

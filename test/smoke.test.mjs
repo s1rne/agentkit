@@ -526,3 +526,53 @@ test("an ordinary task finishes where it worked: in the working directory, witho
   fs.rmSync(dir, { recursive: true, force: true });
   fs.rmSync(home, { recursive: true, force: true });
 });
+
+test("the wave reports its progress as events, not only its verdict", async () => {
+  const dir = tmp();
+  execFileSync("git", ["-C", dir, "init", "-q"], { cwd: dir });
+  const g = (...a) => execFileSync("git", ["-C", dir, "-c", "user.email=t@t", "-c", "user.name=t", ...a], { encoding: "utf8" });
+  g("commit", "-q", "--allow-empty", "-m", "base");
+  run(["init", "--pack", "full"], dir);
+  g("add", "-A"); g("commit", "-q", "-m", "kit");
+
+  const w = await import("../lib/wave.mjs");
+  const log = w.eventLog(dir);
+  log.onEvent({ at: "now", task: "T-1", stage: "impl", event: "started", role: "backend-dev" });
+  log.onEvent({ at: "now", task: "T-1", stage: "critic", event: "verdict", accepted: false, attempt: 1 });
+  const written = fs.readFileSync(log.file, "utf8").trim().split("\n").map((l) => JSON.parse(l));
+  assert.deepEqual(written.map((e) => `${e.stage}.${e.event}`), ["impl.started", "critic.verdict"]);
+  assert.ok(log.file.startsWith(path.join(dir, ".agentkit", "state", "runs")), log.file);
+
+  // The middle of a task is what a watcher cannot get from the task files: a
+  // copy that will not catch up ends the task before any agent is spawned, and
+  // the stream says so with the stage that failed.
+  const box = path.join(dir, "..", `box-${path.basename(dir)}`);
+  g("worktree", "add", "-q", "-b", "ak/T-0070", box);
+  fs.writeFileSync(path.join(box, "contract.ts"), "их версия\n");
+  execFileSync("git", ["-C", box, "-c", "user.email=t@t", "-c", "user.name=t", "add", "-A"]);
+  execFileSync("git", ["-C", box, "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-q", "-m", "их"]);
+  fs.writeFileSync(path.join(dir, "contract.ts"), "наша версия\n");
+  g("add", "-A"); g("commit", "-q", "-m", "наша");
+
+  const file = path.join(dir, "tasks/tasks/T-0070.md");
+  fs.writeFileSync(file, "---\nid: T-0070\ntitle: Столкновение\nstatus: todo\nowner: backend-dev\n---\n\n## Зачем\n\nx\n");
+  const seen = [];
+  const cfg = JSON.parse(fs.readFileSync(path.join(dir, ".agentkit/config.json"), "utf8"));
+  const r = await w.carry(dir, cfg, { file, data: { id: "T-0070", title: "Столкновение" }, body: "" }, {
+    onEvent: (e) => seen.push(e),
+  });
+  assert.equal(r.needsIntegrator, true);
+  assert.deepEqual(seen.map((e) => `${e.stage}.${e.event}`), ["refresh.conflict"]);
+  assert.equal(seen[0].task, "T-0070");
+  assert.match(seen[0].at, /^\d{4}-\d{2}-\d{2}T/);
+  assert.match(seen[0].why, /\S/);
+
+  // A watcher that throws is the watcher's problem, never the task's.
+  const still = await w.carry(dir, cfg, { file, data: { id: "T-0070" }, body: "" }, {
+    onEvent: () => { throw new Error("наблюдатель упал"); },
+  });
+  assert.equal(still.needsIntegrator, true);
+
+  execFileSync("git", ["-C", dir, "worktree", "remove", "--force", box]);
+  fs.rmSync(dir, { recursive: true, force: true });
+});

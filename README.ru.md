@@ -191,6 +191,21 @@ agentkit wave --conc 2 --max 8
 "wave": { "verify": ["pnpm -s typecheck", "pnpm -s lint", "pnpm -s test"], "outputBudget": 4000000 }
 ```
 
+### Наблюдать со стороны
+
+Волна пишет по одному JSON-объекту на строку в `.agentkit/state/runs/wave-<время>.jsonl` — тот же ход работ, что идёт в терминал, только в виде, который читает программа:
+
+```jsonl
+{"at":"…","task":"T-12","stage":"impl","event":"started","role":"backend-dev","attempt":1}
+{"at":"…","task":"T-12","stage":"impl","event":"finished","ok":true,"account":"claude-1","tokens":184000}
+{"at":"…","task":"T-12","stage":"critic","event":"verdict","accepted":false,"attempt":1}
+{"at":"…","task":"T-12","stage":"merge","event":"conflict","files":["src/api.ts"],"needsIntegrator":true}
+```
+
+Стадии — `refresh`, `impl`, `critic`, `audit`, `merge`, `verify`; события — `started`, `finished`, `verdict`, `deferred`, `conflict`, `reverted`. `--events <файл>` уводит их в другое место.
+
+Из своего кода: `carry()` принимает колбэк `onEvent`, и туда приходят те же объекты. Опрос файлов задач это не заменяет — он отстаёт и не видит середины: задача полчаса в `in_progress` не говорит, исполнитель ещё пишет, критик уже смотрит или всё повисло.
+
 ## Видеть, что делает команда
 
 ```bash

@@ -372,6 +372,14 @@ async function cmdWave() {
   const MAX = Number(arg("max", 99));
   const BUDGET = Number(arg("budget", pcfg.wave?.outputBudget || 4_000_000));
   const verifyCmds = arg("verify", null) ? [arg("verify")] : pcfg.wave?.verify || [];
+  /**
+   * Ход работ наружу, а не только в терминал.
+   *
+   * Надзирающий сервис не может узнать из итога, что происходит сейчас: кем
+   * задача взята, какой это заход, критик принял или вернул, слияние прошло.
+   * Опрос файлов задач это не заменяет — он отстаёт и не видит середины.
+   */
+  const events = w.eventLog(ROOT, { file: arg("events", null) });
 
   // Один экземпляр на проект: два берут одни задачи и дерутся за места.
   const lock = path.join(ROOT, ".agentkit", "state", ".wave.lock");
@@ -430,7 +438,7 @@ async function cmdWave() {
       attempts.set(t.data.id, (attempts.get(t.data.id) || 0) + 1);
       say(`— беру ${c.b(t.data.id)} (в очереди ${queue.length}, в работе ${inFlight.size + 1})`);
       const p = w
-        .carry(ROOT, { ...cfg, providers: pcfg }, t, { log: say, attempts, verifyCmds })
+        .carry(ROOT, { ...cfg, providers: pcfg }, t, { log: say, attempts, verifyCmds, onEvent: events.onEvent })
         .then((r) => {
           if (r.deferred) { started--; attempts.set(r.id, (attempts.get(r.id) || 1) - 1); }
           else results.push(r);
@@ -450,13 +458,23 @@ async function cmdWave() {
     }).filter((t) => t.data.id).sort((a, b) => (a.data.id > b.data.id ? 1 : -1));
   }
 
-  log(c.b("\n  agentkit wave"), c.dim(`· до ${CONC} одновременно · потолок окна ${BUDGET.toLocaleString("ru")}\n`));
+  log(c.b("\n  agentkit wave"), c.dim(`· до ${CONC} одновременно · потолок окна ${BUDGET.toLocaleString("ru")}`));
+  log(c.dim(`  события: ${path.relative(ROOT, events.file)}\n`));
+  events.onEvent({ at: new Date().toISOString(), task: null, stage: "wave", event: "started", conc: CONC, budget: BUDGET, verify: verifyCmds });
   await pump();
   while (inFlight.size && !stopping) {
     await Promise.race([...inFlight.values()]);
     await pump();
   }
   release();
+  events.onEvent({
+    at: new Date().toISOString(),
+    task: null,
+    stage: "wave",
+    event: "finished",
+    started,
+    results: results.map((r) => ({ task: r.id, result: r.result, needsIntegrator: Boolean(r.needsIntegrator) })),
+  });
   log("");
   say(results.length ? `итог: ${results.map((r) => `${r.id} — ${r.result}`).join(" · ")}` : "очередь пуста, брать нечего");
   log("");

@@ -158,8 +158,9 @@ function fakeCgroup(files) {
   return dir;
 }
 
-test("in a container the limit is the container's, not the machine's", () => {
+test("in a container the limit is the container's, not the machine's", (t) => {
   const GB = 1024 ** 3;
+  if (os.totalmem() <= 5 * GB) return t.skip("this machine has less memory than the container in the fixture");
   const dir = fakeCgroup({
     "memory.max": `${4 * GB}\n`,
     "memory.current": `${2 * GB}\n`,
@@ -186,29 +187,29 @@ test("in a container the limit is the container's, not the machine's", () => {
 });
 
 test("where nobody shares the memory, nothing is reserved for a human", () => {
-  const GB = 1024 ** 3;
-  const dir = fakeCgroup({
-    "memory.max": `${8 * GB}\n`,
-    "memory.current": `${GB}\n`,
-    "memory.stat": "inactive_file 0\n",
-    "cpu.max": "400000 100000\n",
-  });
-  withEnv({ AGENTKIT_CGROUP_ROOT: dir }, () => {
-    const cap = capacity(dir);
-    // Six gigabytes are held back for an editor and a browser on a laptop. Held
-    // back inside an eight-gigabyte container they would leave room for nobody,
-    // and the fleet would refuse every run forever.
-    assert.equal(maxConcurrency(DEFAULT_LIMITS, cap), 2);
-    const gate = admits(0, DEFAULT_LIMITS, cap);
-    assert.ok(gate.ok || !/^RAM/.test(gate.reason), gate.reason);
-  });
-  fs.rmSync(dir, { recursive: true, force: true });
+  // Stated outright rather than measured: the arithmetic is the subject here,
+  // and reading it off whatever machine runs the suite would test the machine.
+  const cap = { cores: 8, perfCores: 6, ramTotalGB: 8, ramAvailGB: 7, diskFreeGB: 200, load1: 0, loadPerCore: 0, dedicated: true };
+
+  // Six gigabytes are held back for an editor and a browser on a laptop. Held
+  // back inside an eight-gigabyte container they would leave room for nobody,
+  // and the fleet would refuse every run forever.
+  assert.equal(maxConcurrency(DEFAULT_LIMITS, cap), 2);
+  assert.equal(admits(0, DEFAULT_LIMITS, cap).ok, true);
+
+  const shared = { ...cap, dedicated: false };
+  assert.equal(maxConcurrency(DEFAULT_LIMITS, shared), 1, "on a laptop the human keeps their six gigabytes");
+  assert.match(admits(0, DEFAULT_LIMITS, shared).reason, /^RAM: 7 GB available, 6 GB reserved/);
 });
 
-test("cgroup v1, and an unlimited cgroup, are read correctly too", () => {
+test("cgroup v1, and an unlimited cgroup, are read correctly too", (t) => {
   const GB = 1024 ** 3;
+  // A limit at or above what the machine has is no limit at all — which is how
+  // v1 spells "unlimited", with a sentinel the size of the address space. So a
+  // fixture only means anything on a machine with more memory than it claims.
+  if (os.totalmem() <= 7 * GB) return t.skip("this machine has less memory than the container in the fixture");
   const v1 = fakeCgroup({
-    "memory/memory.limit_in_bytes": `${16 * GB}\n`,
+    "memory/memory.limit_in_bytes": `${6 * GB}\n`,
     "memory/memory.usage_in_bytes": `${GB}\n`,
     "memory/memory.stat": "inactive_file 0\n",
     "cpu/cpu.cfs_quota_us": "800000\n",
@@ -216,9 +217,10 @@ test("cgroup v1, and an unlimited cgroup, are read correctly too", () => {
   });
   withEnv({ AGENTKIT_CGROUP_ROOT: v1 }, () => {
     const cap = capacity(v1);
-    assert.equal(cap.ramTotalGB, 16);
-    assert.equal(cap.ramAvailGB, 15);
-    assert.equal(maxConcurrency(DEFAULT_LIMITS, cap), 5, "(15 - 1) GB over 2.5 GB an agent");
+    assert.equal(cap.dedicated, true);
+    assert.equal(cap.ramTotalGB, 6);
+    assert.equal(cap.ramAvailGB, 5);
+    assert.equal(maxConcurrency(DEFAULT_LIMITS, { ...cap, perfCores: 8 }), 1, "(5 - 1) GB over 2.5 GB an agent");
   });
   fs.rmSync(v1, { recursive: true, force: true });
 

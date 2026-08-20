@@ -10,6 +10,19 @@ const CLI = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "bi
 const run = (args, cwd) => execFileSync("node", [CLI, ...args], { cwd, encoding: "utf8" });
 const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), "ak-"));
 
+/**
+ * Some tests need a subscription CLI that is actually logged in: without one the
+ * orchestrator blocks the run before it ever picks a box, which is the correct
+ * answer and tells us nothing about what the test is asking. A machine with no
+ * login is a normal machine, not a broken one — say so and move on.
+ */
+async function loggedIn() {
+  const { probeAll } = await import("../lib/providers/index.mjs");
+  const r = await probeAll({ ttlMs: 0 });
+  return Object.values(r.providers).some((p) => p.state === "ready");
+}
+const NO_LOGIN = "no subscription CLI is logged in on this machine";
+
 test("init deploys the full set", () => {
   const dir = tmp();
   run(["init", "--pack", "web-product", "--adapters", "claude-code,cursor,agents-md"], dir);
@@ -191,7 +204,8 @@ test("the active-run registry survives concurrent writers", async () => {
   fs.rmSync(home, { recursive: true, force: true });
 });
 
-test("a reviewer never gains write access from an implementer's box", async () => {
+test("a reviewer never gains write access from an implementer's box", async (t) => {
+  if (!(await loggedIn())) return t.skip(NO_LOGIN);
   const dir = tmp();
   const home = tmp();
   process.env.AGENTKIT_HOME = home;
@@ -331,7 +345,8 @@ test("overlapping work areas are detected as paths, not as strings", async () =>
   assert.deepEqual([cl[0].a, cl[0].b], ["T-1", "T-2"]);
 });
 
-test("a task's declared risk decides its box, even when the caller forgets", async () => {
+test("a task's declared risk decides its box, even when the caller forgets", async (t) => {
+  if (!(await loggedIn())) return t.skip(NO_LOGIN);
   const dir = tmp();
   const home = tmp();
   process.env.AGENTKIT_HOME = home;
@@ -404,7 +419,8 @@ test("the wave decides readiness, merges and knows when a conflict is not its bu
   fs.rmSync(dir, { recursive: true, force: true });
 });
 
-test("project limits reach the run without being restated", async () => {
+test("project limits reach the run without being restated", async (t) => {
+  if (!(await loggedIn())) return t.skip(NO_LOGIN);
   const dir = tmp();
   const home = tmp();
   process.env.AGENTKIT_HOME = home;

@@ -122,6 +122,20 @@ test("claude spawnSpec keeps --verbose and drops API keys", () => {
     const ro = claudeCode.spawnSpec({ prompt: "hi", permission: "read" });
     assert.ok(ro.args.includes("plan"), "a reading role gets the read-only permission mode");
     assert.ok(ro.args.includes("--disallowed-tools"));
+    // Running and writing are different powers: `plan` forbids both, so a role
+    // that has to confirm by running gets a mode that runs, with the write tools
+    // withheld by name.
+    const ver = claudeCode.spawnSpec({ prompt: "hi", permission: "verify" });
+    assert.ok(!ver.args.includes("plan"), "plan would forbid the test run itself");
+    assert.deepEqual(ver.args.slice(-3), ["Edit", "Write", "NotebookEdit"]);
+    assert.equal(claudeCode.canRunWithoutWriting, true);
+
+    // Cursor cannot withhold tools by name, so the same request stays read-only
+    // instead of quietly becoming full write access.
+    const cver = cursor.spawnSpec({ prompt: "hi", permission: "verify" });
+    assert.ok(!cver.args.includes("--force"), cver.args.join(" "));
+    assert.equal(cursor.canRunWithoutWriting, false);
+
     const iso = claudeCode.spawnSpec({ prompt: "hi", permission: "isolated" });
     assert.ok(iso.args.includes("bypassPermissions"), "prompts are only bypassed inside an isolated box");
 

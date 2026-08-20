@@ -211,9 +211,15 @@ test("a reviewer never gains write access from an implementer's box", async () =
   // which holds uncommitted work. Permission must follow the stricter decision.
   const rev = await orchRun(dir, { ...cfg, providers }, { task: "T-9", role: "critic", dryRun: true });
   assert.equal(rev.box.mode, "worktree", "the reviewer sees the tree that was built");
-  assert.equal(rev.box.permission, "read", "but must not be able to write in it");
-  assert.ok(rev.command.includes("--permission-mode plan"), rev.command);
-  assert.ok(rev.command.includes("--disallowed-tools"), rev.command);
+  assert.equal(rev.box.permission, "verify", "it may run the tests, it may not write");
+  assert.ok(rev.command.includes("--disallowed-tools Edit Write NotebookEdit"), rev.command);
+  assert.ok(!rev.command.includes("--permission-mode plan"), "plan would forbid running as well");
+
+  // A reading role that declares no way to run commands keeps the mode that
+  // forbids both: the role file decides, not the list of reviewing roles.
+  const ana = await orchRun(dir, { ...cfg, providers }, { task: "T-9", role: "domain-analyst", dryRun: true });
+  assert.equal(ana.box.permission, "read");
+  assert.ok(ana.command.includes("--permission-mode plan"), ana.command);
   // A dry run exists to show the flags, so the prompt must not crowd them out.
   assert.ok(/<prompt:\d+c>/.test(rev.command), rev.command);
 

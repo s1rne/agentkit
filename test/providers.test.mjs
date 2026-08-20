@@ -122,6 +122,20 @@ test("claude spawnSpec keeps --verbose and drops API keys", () => {
     const ro = claudeCode.spawnSpec({ prompt: "hi", permission: "read" });
     assert.ok(ro.args.includes("plan"), "a reading role gets the read-only permission mode");
     assert.ok(ro.args.includes("--disallowed-tools"));
+    // Running and writing are different powers: `plan` forbids both, so a role
+    // that has to confirm by running gets a mode that runs, with the write tools
+    // withheld by name.
+    const ver = claudeCode.spawnSpec({ prompt: "hi", permission: "verify" });
+    assert.ok(!ver.args.includes("plan"), "plan would forbid the test run itself");
+    assert.deepEqual(ver.args.slice(-3), ["Edit", "Write", "NotebookEdit"]);
+    assert.equal(claudeCode.canRunWithoutWriting, true);
+
+    // Cursor cannot withhold tools by name, so the same request stays read-only
+    // instead of quietly becoming full write access.
+    const cver = cursor.spawnSpec({ prompt: "hi", permission: "verify" });
+    assert.ok(!cver.args.includes("--force"), cver.args.join(" "));
+    assert.equal(cursor.canRunWithoutWriting, false);
+
     const iso = claudeCode.spawnSpec({ prompt: "hi", permission: "isolated" });
     assert.ok(iso.args.includes("bypassPermissions"), "prompts are only bypassed inside an isolated box");
 
@@ -149,6 +163,51 @@ test("claude spawnSpec keeps --verbose and drops API keys", () => {
   } finally {
     delete process.env.ANTHROPIC_API_KEY;
     delete process.env.CURSOR_API_KEY;
+  }
+});
+
+test("a subscription reached with a token is still a subscription", async (t) => {
+  // Both shapes were captured from the live CLI. The token login carries no
+  // address and no plan name — reading only the browser pair as a subscription
+  // marked it "metered", and a metered login is never selected, so a container
+  // with no way to log in through a browser could not run an agent at all.
+  const browser = claudeCode.readAuth({
+    loggedIn: true, authMethod: "claude.ai", apiProvider: "firstParty", email: "a@b", subscriptionType: "max",
+  });
+  assert.equal(browser.state, "ready");
+  assert.equal(browser.detail.loginPath, "browser");
+
+  const token = claudeCode.readAuth(
+    { loggedIn: true, authMethod: "oauth_token", apiProvider: "firstParty" },
+    { viaEnvToken: true }
+  );
+  assert.equal(token.state, "ready");
+  assert.equal(token.detail.loginPath, "token");
+  assert.equal(token.detail.viaEnvToken, true);
+
+  // Everything else is unchanged: a key still bills per token.
+  assert.equal(claudeCode.readAuth({ loggedIn: true, authMethod: "apiKey", apiProvider: "firstParty" }).state, "metered");
+  assert.equal(claudeCode.readAuth({ loggedIn: false, authMethod: "none" }).state, "not-logged-in");
+
+  // One token in the environment is one login, whatever config directories the
+  // accounts name: spreading load across it buys nothing and must not look busy.
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "ak-tok-"));
+  process.env[claudeCode.tokenEnv] = "sk-ant-oat01-not-a-real-token";
+  try {
+    const r = await probeAll({
+      ttlMs: 0,
+      accounts: [
+        { id: "one", provider: "claude-code", configDir: path.join(dir, "one") },
+        { id: "two", provider: "claude-code", configDir: path.join(dir, "two") },
+      ],
+    });
+    if (r.accounts[0].state !== "ready") return t.skip("the claude CLI is not installed on this machine");
+    assert.equal(r.accounts[0].detail.loginPath, "token");
+    assert.equal(r.accounts[1].duplicateOf, "one");
+    assert.match(r.accounts[1].hint, /isolation did not take effect/);
+  } finally {
+    delete process.env[claudeCode.tokenEnv];
+    fs.rmSync(dir, { recursive: true, force: true });
   }
 });
 

@@ -20,6 +20,8 @@ Boxes live **outside the repository**: `~/.agentkit/boxes/<repo>/<task-id>`. A w
 
 Tie-breaks, in order: the role doesn't touch the product tree → `readonly`. Anything in the `worktree` row → `worktree`, and with no git that becomes `sandbox`. Otherwise `shared`.
 
+`readonly` withholds the write tools, not the ability to run. A role whose declared tools include `Bash` — `critic`, `security-auditor` — runs the tests and the program itself in its box; it just cannot edit anything. A role that declares no `Bash` can do neither. Reviewing without running turns a verdict into an opinion about code that was never executed, and the definition of done asks for a run.
+
 **Without git, a single writer still works in `shared`** — a copy for every ordinary task would make the tool unusable — but the run says so plainly, because there is no undo. The fix is `git init`, not a bigger warning.
 
 `shared` is not a way to run two writers cheaply. Two writers means `worktree`, even when their `touches` don't overlap — see `parallel-work`.

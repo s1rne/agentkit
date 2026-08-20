@@ -187,6 +187,21 @@ What it verifies after each merge is yours to set, in `.agentkit/providers.json`
 "wave": { "verify": ["pnpm -s typecheck", "pnpm -s lint", "pnpm -s test"], "outputBudget": 4000000 }
 ```
 
+### Following it from outside
+
+The wave writes one JSON object per line to `.agentkit/state/runs/wave-<time>.jsonl` — the same stream the terminal prints, in a shape a program can read:
+
+```jsonl
+{"at":"…","task":"T-12","stage":"impl","event":"started","role":"backend-dev","attempt":1}
+{"at":"…","task":"T-12","stage":"impl","event":"finished","ok":true,"account":"claude-1","tokens":184000}
+{"at":"…","task":"T-12","stage":"critic","event":"verdict","accepted":false,"attempt":1}
+{"at":"…","task":"T-12","stage":"merge","event":"conflict","files":["src/api.ts"],"needsIntegrator":true}
+```
+
+Stages are `refresh`, `impl`, `critic`, `audit`, `merge`, `verify`; events are `started`, `finished`, `verdict`, `deferred`, `conflict`, `reverted`. `--events <file>` sends them somewhere else.
+
+From your own code, `carry()` takes an `onEvent` callback and the same objects arrive there. Polling the task files is not a substitute: it lags, and it cannot see the middle — a task half an hour in `in_progress` says nothing about whether the implementer is still writing, the critic is already reading, or the whole thing is stuck.
+
 ## Seeing what the team is doing
 
 ```bash
@@ -196,6 +211,38 @@ agentkit team T-0019     # one agent in detail: elapsed, memory, tokens, last ve
 ```
 
 It reads only what is already on disk — the active-run registry, finished run records, task frontmatter — so polling it is free and starts nothing.
+
+### One flag for a program
+
+`status`, `providers`, `team`, `box`, `context` and `usage` take `--json` and print what they already computed, with no colour, no padding and no wording:
+
+```console
+$ agentkit providers --json
+{"probedAt":"…","riskyEnv":[],"providers":{…},"accounts":[{"id":"claude-1","state":"ready","windowTokens":184000,…}]}
+
+$ agentkit box --json
+[{"taskId":"T-12","mode":"worktree","branch":"ak/T-12","sizeMB":240,"dirty":true,"ahead":3}]
+```
+
+A dashboard parsing the human output breaks on a rephrasing, on `--lang`, on a column that got wider — and freezes the readable output as an interface nobody may improve. The wave has its own stream: `.agentkit/state/runs/wave-<time>.jsonl`.
+
+## From your own code
+
+The CLI is one caller of the library, not the only way in. A service that drives several repositories imports what it needs:
+
+```js
+import { run } from "@s1rne/agentkit/orchestrator";
+import { carry, ready, eventLog } from "@s1rne/agentkit/wave";
+import { pick, summary } from "@s1rne/agentkit/accounts";
+import { probeAll, route } from "@s1rne/agentkit/providers";
+import { gather } from "@s1rne/agentkit/team";
+
+const report = await run(root, cfg, { task: "T-12", wait: true });
+```
+
+Subpaths: `/orchestrator`, `/wave`, `/accounts`, `/providers`, `/boxes`, `/resources`, `/team`, `/usage`. The package root re-exports all of them as namespaces, plus `run`, `carry` and `ready` directly. Everything outside that list is private and changes without notice.
+
+Nothing there reads global state or throws for an expected condition: `run()` takes the root and the config as arguments, a refusal comes back as a status with a reason, and `probeAll()` never raises.
 
 ## Adopting a project that already has agents
 
@@ -227,6 +274,21 @@ What separates the logins differs by vendor, and it was measured rather than ass
 `account add` sets up whichever one actually works. **Check it took effect with `account list`: two rows showing the same address mean the isolation did not happen**, and the kit marks them as one login rather than pretending it has two.
 
 Work goes to whichever login has spent the least in the current subscription window — not round-robin, because one task can cost ten times another. A run that comes back rate-limited or unauthenticated puts that login to rest for the window and retries once on another; never in a loop.
+
+### Logging in without a browser
+
+There are two ways into the same Claude subscription, and both are read as a subscription:
+
+| Path | What `claude auth status` reports | When |
+|---|---|---|
+| browser login | `authMethod: claude.ai`, plus your address and plan | on your own machine |
+| `CLAUDE_CODE_OAUTH_TOKEN` | `authMethod: oauth_token`, no address, no plan name | in a container, on a server, in CI |
+
+`claude setup-token` issues the token; it needs Pro/Max/Team/Enterprise and can do nothing but call the model, so it is never the metered path and is never stripped from a child process. It is the only way to bring an agent up where nobody can open a browser.
+
+One caveat, verified: `claude auth status` does not check the token against the server — an expired or mistyped one still reports `loggedIn: true`. It fails on the first real run instead, and the account bookkeeping takes that login out of rotation for the window.
+
+A token lives in the environment, which every config directory shares, so **it cannot be used to run two logins**: accounts pointing at one token are marked as one login, exactly as two rows with the same address are.
 
 ## Where agents work
 
@@ -296,7 +358,7 @@ Memory deliberately lives in `.agentkit/state/` rather than inside a tool's fold
 
 ## Status
 
-`0.7.0` — early. The structure is complete and tested, but the core has not yet been proven by shipping a real product with it. Expect the protocols to shrink once they meet actual work.
+`0.9.0` — early. The structure is complete and tested, and the queue now carries an ordinary task end to end, but the core has not yet been proven by shipping a real product with it. Expect the protocols to shrink once they meet actual work.
 
 ## License
 

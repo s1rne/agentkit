@@ -10,6 +10,19 @@ const CLI = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "bi
 const run = (args, cwd) => execFileSync("node", [CLI, ...args], { cwd, encoding: "utf8" });
 const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), "ak-"));
 
+/**
+ * Some tests need a subscription CLI that is actually logged in: without one the
+ * orchestrator blocks the run before it ever picks a box, which is the correct
+ * answer and tells us nothing about what the test is asking. A machine with no
+ * login is a normal machine, not a broken one — say so and move on.
+ */
+async function loggedIn() {
+  const { probeAll } = await import("../lib/providers/index.mjs");
+  const r = await probeAll({ ttlMs: 0 });
+  return Object.values(r.providers).some((p) => p.state === "ready");
+}
+const NO_LOGIN = "no subscription CLI is logged in on this machine";
+
 test("init deploys the full set", () => {
   const dir = tmp();
   run(["init", "--pack", "web-product", "--adapters", "claude-code,cursor,agents-md"], dir);
@@ -191,7 +204,8 @@ test("the active-run registry survives concurrent writers", async () => {
   fs.rmSync(home, { recursive: true, force: true });
 });
 
-test("a reviewer never gains write access from an implementer's box", async () => {
+test("a reviewer never gains write access from an implementer's box", async (t) => {
+  if (!(await loggedIn())) return t.skip(NO_LOGIN);
   const dir = tmp();
   const home = tmp();
   process.env.AGENTKIT_HOME = home;
@@ -211,9 +225,15 @@ test("a reviewer never gains write access from an implementer's box", async () =
   // which holds uncommitted work. Permission must follow the stricter decision.
   const rev = await orchRun(dir, { ...cfg, providers }, { task: "T-9", role: "critic", dryRun: true });
   assert.equal(rev.box.mode, "worktree", "the reviewer sees the tree that was built");
-  assert.equal(rev.box.permission, "read", "but must not be able to write in it");
-  assert.ok(rev.command.includes("--permission-mode plan"), rev.command);
-  assert.ok(rev.command.includes("--disallowed-tools"), rev.command);
+  assert.equal(rev.box.permission, "verify", "it may run the tests, it may not write");
+  assert.ok(rev.command.includes("--disallowed-tools Edit Write NotebookEdit"), rev.command);
+  assert.ok(!rev.command.includes("--permission-mode plan"), "plan would forbid running as well");
+
+  // A reading role that declares no way to run commands keeps the mode that
+  // forbids both: the role file decides, not the list of reviewing roles.
+  const ana = await orchRun(dir, { ...cfg, providers }, { task: "T-9", role: "domain-analyst", dryRun: true });
+  assert.equal(ana.box.permission, "read");
+  assert.ok(ana.command.includes("--permission-mode plan"), ana.command);
   // A dry run exists to show the flags, so the prompt must not crowd them out.
   assert.ok(/<prompt:\d+c>/.test(rev.command), rev.command);
 
@@ -325,7 +345,8 @@ test("overlapping work areas are detected as paths, not as strings", async () =>
   assert.deepEqual([cl[0].a, cl[0].b], ["T-1", "T-2"]);
 });
 
-test("a task's declared risk decides its box, even when the caller forgets", async () => {
+test("a task's declared risk decides its box, even when the caller forgets", async (t) => {
+  if (!(await loggedIn())) return t.skip(NO_LOGIN);
   const dir = tmp();
   const home = tmp();
   process.env.AGENTKIT_HOME = home;
@@ -398,7 +419,8 @@ test("the wave decides readiness, merges and knows when a conflict is not its bu
   fs.rmSync(dir, { recursive: true, force: true });
 });
 
-test("project limits reach the run without being restated", async () => {
+test("project limits reach the run without being restated", async (t) => {
+  if (!(await loggedIn())) return t.skip(NO_LOGIN);
   const dir = tmp();
   const home = tmp();
   process.env.AGENTKIT_HOME = home;
@@ -452,5 +474,200 @@ test("a task's copy catches up with the base branch before work starts", async (
   assert.equal(w.refresh(dir, "T-0060", "main").behind, 0);
 
   execFileSync("git", ["-C", dir, "worktree", "remove", "--force", box]);
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test("a task that depends on nothing says so with an empty field, not with a task named null", async () => {
+  const { parseFront } = await import("../lib/util.mjs");
+  for (const written of ["null", "~", ""]) {
+    const { data } = parseFront(`---\nid: T-0001\nstatus: todo\nblocked_by: ${written}\n---\nтело`);
+    assert.equal(data.blocked_by, null, `blocked_by: ${JSON.stringify(written)}`);
+  }
+
+  const dir = tmp();
+  execFileSync("git", ["-C", dir, "init", "-q"], { cwd: dir });
+  const g = (...a) => execFileSync("git", ["-C", dir, "-c", "user.email=t@t", "-c", "user.name=t", ...a], { encoding: "utf8" });
+  g("commit", "-q", "--allow-empty", "-m", "base");
+
+  // The planner writes `blocked_by: null` by itself for the first task of an
+  // order. Read as a string it became a dependency on a task called "null",
+  // nothing was ever ready, and the wave printed "the queue is empty".
+  const w = await import("../lib/wave.mjs");
+  const all = [
+    { file: "", data: { id: "T-0001", status: "todo", blocked_by: null }, body: "" },
+    { file: "", data: { id: "T-0002", status: "todo", blocked_by: "T-0001" }, body: "" },
+  ];
+  assert.deepEqual(w.ready(dir, all).map((t) => t.data.id), ["T-0001"]);
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test("an ordinary task finishes where it worked: in the working directory, without a branch", async () => {
+  const dir = tmp();
+  const home = tmp();
+  process.env.AGENTKIT_HOME = home;
+  execFileSync("git", ["-C", dir, "init", "-q"], { cwd: dir });
+  const g = (...a) => execFileSync("git", ["-C", dir, "-c", "user.email=t@t", "-c", "user.name=t", ...a], { encoding: "utf8" });
+  // The library commits here itself, so the repository needs its own identity:
+  // a machine with none configured is a normal machine, not a broken one.
+  g("config", "user.email", "t@t");
+  g("config", "user.name", "t");
+  g("commit", "-q", "--allow-empty", "-m", "base");
+
+  const w = await import("../lib/wave.mjs");
+  const boxes = await import("../lib/boxes.mjs");
+
+  // One writer on a normal task gets the shared box: no branch is ever created.
+  assert.equal(boxes.decideMode({ writers: 1, risk: "normal", kind: "normal" }).mode, "shared");
+  boxes.create(dir, "T-0001", "shared");
+
+  fs.writeFileSync(path.join(dir, "dupes.py"), "print('готово')\n");
+  const m = w.mergeBranch(dir, "T-0001", "Поиск дубликатов", { mode: "shared" });
+  assert.equal(m.ok, true, m.why);
+  assert.equal(m.inPlace, true, "сливать нечего — работа уже в рабочем каталоге");
+  assert.equal(g("status", "--porcelain").trim(), "", "работа обязана быть зафиксирована");
+  assert.match(g("log", "-1", "--format=%s"), /Поиск дубликатов/);
+
+  // And it counts as done for everything that waits on it.
+  assert.equal(w.merged(dir, "T-0001"), true);
+  const all = [
+    { file: "", data: { id: "T-0001", status: "done" }, body: "" },
+    { file: "", data: { id: "T-0002", status: "todo", blocked_by: "T-0001" }, body: "" },
+  ];
+  assert.deepEqual(w.ready(dir, all).map((t) => t.data.id), ["T-0002"]);
+
+  // A sandbox is the one case that has no branch and no work in the repository
+  // either: it lies outside version control, so a rule must not claim it merged.
+  boxes.create(dir, "T-0003", "sandbox");
+  const s = w.mergeBranch(dir, "T-0003", "Опасная");
+  assert.equal(s.ok, false);
+  assert.equal(s.needsIntegrator, true);
+
+  delete process.env.AGENTKIT_HOME;
+  fs.rmSync(dir, { recursive: true, force: true });
+  fs.rmSync(home, { recursive: true, force: true });
+});
+
+test("the wave reports its progress as events, not only its verdict", async () => {
+  const dir = tmp();
+  execFileSync("git", ["-C", dir, "init", "-q"], { cwd: dir });
+  const g = (...a) => execFileSync("git", ["-C", dir, "-c", "user.email=t@t", "-c", "user.name=t", ...a], { encoding: "utf8" });
+  g("commit", "-q", "--allow-empty", "-m", "base");
+  run(["init", "--pack", "full"], dir);
+  g("add", "-A"); g("commit", "-q", "-m", "kit");
+
+  const w = await import("../lib/wave.mjs");
+  const log = w.eventLog(dir);
+  log.onEvent({ at: "now", task: "T-1", stage: "impl", event: "started", role: "backend-dev" });
+  log.onEvent({ at: "now", task: "T-1", stage: "critic", event: "verdict", accepted: false, attempt: 1 });
+  const written = fs.readFileSync(log.file, "utf8").trim().split("\n").map((l) => JSON.parse(l));
+  assert.deepEqual(written.map((e) => `${e.stage}.${e.event}`), ["impl.started", "critic.verdict"]);
+  assert.ok(log.file.startsWith(path.join(dir, ".agentkit", "state", "runs")), log.file);
+
+  // The middle of a task is what a watcher cannot get from the task files: a
+  // copy that will not catch up ends the task before any agent is spawned, and
+  // the stream says so with the stage that failed.
+  const box = path.join(dir, "..", `box-${path.basename(dir)}`);
+  g("worktree", "add", "-q", "-b", "ak/T-0070", box);
+  fs.writeFileSync(path.join(box, "contract.ts"), "их версия\n");
+  execFileSync("git", ["-C", box, "-c", "user.email=t@t", "-c", "user.name=t", "add", "-A"]);
+  execFileSync("git", ["-C", box, "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-q", "-m", "их"]);
+  fs.writeFileSync(path.join(dir, "contract.ts"), "наша версия\n");
+  g("add", "-A"); g("commit", "-q", "-m", "наша");
+
+  const file = path.join(dir, "tasks/tasks/T-0070.md");
+  fs.writeFileSync(file, "---\nid: T-0070\ntitle: Столкновение\nstatus: todo\nowner: backend-dev\n---\n\n## Зачем\n\nx\n");
+  const seen = [];
+  const cfg = JSON.parse(fs.readFileSync(path.join(dir, ".agentkit/config.json"), "utf8"));
+  const r = await w.carry(dir, cfg, { file, data: { id: "T-0070", title: "Столкновение" }, body: "" }, {
+    onEvent: (e) => seen.push(e),
+  });
+  assert.equal(r.needsIntegrator, true);
+  assert.deepEqual(seen.map((e) => `${e.stage}.${e.event}`), ["refresh.conflict"]);
+  assert.equal(seen[0].task, "T-0070");
+  assert.match(seen[0].at, /^\d{4}-\d{2}-\d{2}T/);
+  assert.match(seen[0].why, /\S/);
+
+  // A watcher that throws is the watcher's problem, never the task's.
+  const still = await w.carry(dir, cfg, { file, data: { id: "T-0070" }, body: "" }, {
+    onEvent: () => { throw new Error("наблюдатель упал"); },
+  });
+  assert.equal(still.needsIntegrator, true);
+
+  execFileSync("git", ["-C", dir, "worktree", "remove", "--force", box]);
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test("agentkit can be called as a library, not only run as a command", async () => {
+  const PKG = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+  const pkg = JSON.parse(fs.readFileSync(path.join(PKG, "package.json"), "utf8"));
+
+  // Every declared path exists; a map that promises a file nobody shipped is
+  // worse than no map at all.
+  for (const [sub, target] of Object.entries(pkg.exports)) {
+    assert.ok(fs.existsSync(path.join(PKG, target)), `${sub} → ${target}`);
+  }
+
+  // And Node's own resolver agrees: an undeclared subpath fails here, so this
+  // is the check that would have caught lib/ being unreachable from outside.
+  const dir = tmp();
+  fs.mkdirSync(path.join(dir, "node_modules", "@s1rne"), { recursive: true });
+  fs.symlinkSync(PKG, path.join(dir, "node_modules", "@s1rne", "agentkit"), "dir");
+  const out = execFileSync("node", ["--input-type=module", "-e", `
+    import { run } from "@s1rne/agentkit/orchestrator";
+    import { pick, summary } from "@s1rne/agentkit/accounts";
+    import { probeAll, route } from "@s1rne/agentkit/providers";
+    import { carry, ready } from "@s1rne/agentkit/wave";
+    import * as kit from "@s1rne/agentkit";
+    console.log([run, pick, summary, probeAll, route, carry, ready].every((f) => typeof f === "function"));
+    console.log(typeof kit.team.gather === "function" && typeof kit.resources.capacity === "function");
+  `], { cwd: dir, encoding: "utf8" });
+  assert.equal(out.trim(), "true\ntrue", out);
+
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test("every reporting command can answer a program, not only a person", () => {
+  const dir = tmp();
+  execFileSync("git", ["-C", dir, "init", "-q"], { cwd: dir });
+  execFileSync("git", ["-C", dir, "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-q", "--allow-empty", "-m", "x"]);
+  run(["init", "--pack", "full", "--lang", "ru"], dir);
+  fs.writeFileSync(path.join(dir, "tasks/tasks/T-0001.md"),
+    "---\nid: T-0001\ntitle: Первая\nstatus: todo\nowner: backend-dev\nblocked_by: null\ntouches: [src/api.ts]\n---\n\n## Зачем\n\nx\n");
+  fs.writeFileSync(path.join(dir, "tasks/tasks/T-0002.md"),
+    "---\nid: T-0002\ntitle: Вторая\nstatus: review\nowner: backend-dev\nblocked_by: T-0001\n---\n\n## Зачем\n\nx\n");
+
+  const parsed = (args) => {
+    const out = run(args, dir);
+    // Colour and column padding are for a human; a machine gets neither.
+    assert.ok(!/\x1b\[/.test(out), `${args.join(" ")} printed escape codes`);
+    return JSON.parse(out);
+  };
+
+  const status = parsed(["status", "--json"]);
+  assert.equal(status.pack, "full");
+  assert.equal(status.language, "ru");
+  assert.deepEqual(status.tasks, { todo: 1, review: 1 });
+  assert.ok(status.roles.some((r) => r.name === "critic" && typeof r.cap === "number"));
+
+  const team = parsed(["team", "--json"]);
+  assert.deepEqual(team.ready.map((t) => t.id), ["T-0001"], "and it is ready: blocked_by was empty");
+  assert.deepEqual(team.forHuman.map((t) => t.id), ["T-0002"]);
+  assert.equal(typeof team.slots, "number");
+  assert.equal(typeof team.capacity.ramAvailGB, "number");
+  // The whole task body would drown the answer; the fields are what is wanted.
+  assert.ok(!("body" in team.ready[0]), Object.keys(team.ready[0]).join(","));
+
+  const providers = parsed(["providers", "--json"]);
+  assert.match(providers.probedAt, /^\d{4}-/);
+  assert.ok("claude-code" in providers.providers);
+  assert.ok(Array.isArray(providers.accounts));
+  assert.ok(Array.isArray(providers.riskyEnv));
+
+  assert.deepEqual(parsed(["box", "--json"]), []);
+  assert.equal(typeof parsed(["context", "--json"]).maxConcurrent, "number");
+  assert.equal(typeof parsed(["usage", "--json"]).window.totals.output, "number");
+
+  // The Russian install still speaks Russian to its human.
+  assert.match(run(["status"], dir), /[А-Яа-я]/);
   fs.rmSync(dir, { recursive: true, force: true });
 });

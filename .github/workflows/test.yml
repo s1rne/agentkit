@@ -1,0 +1,31 @@
+name: test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node: ["18", "20", "22"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+
+      # The suite builds real git repositories, worktrees and merges. A runner
+      # with no identity configured cannot commit, and a default branch called
+      # something else would fail the merge tests for the wrong reason.
+      - name: Give git an identity and a default branch
+        run: |
+          git config --global user.email ci@example.com
+          git config --global user.name ci
+          git config --global init.defaultBranch main
+
+      # No dependencies to install: the package has none, on purpose.
+      - run: node --test test/*.test.mjs

@@ -2,7 +2,7 @@
 
 Dates are release dates. Earlier work is in the commit history.
 
-## Unreleased
+## 0.10.0 — 2026-10-17
 
 ### Added
 

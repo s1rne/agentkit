@@ -11,6 +11,9 @@ Dates are release dates. Earlier work is in the commit history.
   `no-ai-attribution`, `handoff-protocol`, `memory-protocol`, `task-protocol`)
   as standalone `SKILL.md` folders, with their subagent where one exists.
   `--zip` packs each folder with no external `zip`, so it works on Windows too.
+- **A Copilot adapter.** `--adapters copilot` keeps the team block in
+  `.github/copilot-instructions.md`, the file Copilot reads for repository
+  instructions.
 
 ### Fixed
 

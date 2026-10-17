@@ -8,7 +8,7 @@ A team of AI agents, project memory and engineering process — deployed into an
 npx @s1rne/agentkit init
 ```
 
-Works with **Claude Code**, **Cursor**, and any tool that reads `AGENTS.md` (Codex and compatible).
+Works with **Claude Code**, **Cursor**, **GitHub Copilot**, and any tool that reads `AGENTS.md` (Codex and compatible).
 
 Any package manager:
 
@@ -325,12 +325,12 @@ The kit itself costs about **2 000 tokens** at session start; the remaining ~15 
 
 ## Portability
 
-| | Claude Code | Cursor | AGENTS.md |
-|---|---|---|---|
-| Memory, tasks, protocols | ✓ | ✓ | ✓ |
-| Roles | subagents, isolated context | invocable templates | invocable templates |
-| Parallel execution | ✓ | — | — |
-| Slash commands | ✓ | partial | — |
+| | Claude Code | Cursor | AGENTS.md | Copilot |
+|---|---|---|---|---|
+| Memory, tasks, protocols | ✓ | ✓ | ✓ | ✓ |
+| Roles | subagents, isolated context | invocable templates | invocable templates | invocable templates |
+| Parallel execution | ✓ | — | — | — |
+| Slash commands | ✓ | partial | — | — |
 
 Memory deliberately lives in `.agentkit/state/` rather than inside a tool's folder: moving from Claude Code to Cursor doesn't lose project history. For the same reason observability is a protocol (`RUNS.md`) rather than hooks — hooks don't port, files do.
 

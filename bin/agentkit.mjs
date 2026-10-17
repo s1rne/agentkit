@@ -16,6 +16,7 @@ const ADAPTERS = {
   "claude-code": () => import("../lib/adapters/claude-code.mjs"),
   cursor: () => import("../lib/adapters/cursor.mjs"),
   "agents-md": () => import("../lib/adapters/agents-md.mjs"),
+  copilot: () => import("../lib/adapters/copilot.mjs"),
 };
 
 // Markers left in templates where the human has to fill something in.

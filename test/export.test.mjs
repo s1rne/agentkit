@@ -53,3 +53,13 @@ test("export --zip packs a folder that unpacks to the skill directory", () => {
 test("export refuses a protocol that needs the agentkit runtime", () => {
   assert.throws(() => run(["export", "workspace-protocol"], tmp()), /not portable/);
 });
+
+test("the copilot adapter keeps the team block in copilot-instructions.md", () => {
+  const dir = tmp();
+  run(["init", "--adapters", "copilot"], dir);
+  const f = path.join(dir, ".github", "copilot-instructions.md");
+  const first = fs.readFileSync(f, "utf8");
+  assert.match(first, /<!-- agentkit:start -->[\s\S]*\*\*critic\*\*[\s\S]*<!-- agentkit:end -->/);
+  run(["sync"], dir);
+  assert.equal(fs.readFileSync(f, "utf8"), first, "sync must not duplicate the block");
+});

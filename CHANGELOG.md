@@ -2,6 +2,23 @@
 
 Dates are release dates. Earlier work is in the commit history.
 
+## Unreleased
+
+### Added
+
+- **`agentkit export`** writes the seven protocols that work without the kit
+  (`adversarial-review`, `definition-of-done`, `context-budget`,
+  `no-ai-attribution`, `handoff-protocol`, `memory-protocol`, `task-protocol`)
+  as standalone `SKILL.md` folders, with their subagent where one exists.
+  `--zip` packs each folder with no external `zip`, so it works on Windows too.
+- **A Copilot adapter.** `--adapters copilot` keeps the team block in
+  `.github/copilot-instructions.md`, the file Copilot reads for repository
+  instructions.
+
+### Fixed
+
+- The README counted 13 roles and 11 protocols; the kit ships 14 and 15.
+
 ## 0.9.0 — 2026-08-20
 
 The release that makes a normal task finish, lets a reviewer run what it judges,

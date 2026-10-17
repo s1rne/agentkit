@@ -8,7 +8,7 @@ A team of AI agents, project memory and engineering process — deployed into an
 npx @s1rne/agentkit init
 ```
 
-Works with **Claude Code**, **Cursor**, and any tool that reads `AGENTS.md` (Codex and compatible).
+Works with **Claude Code**, **Cursor**, **GitHub Copilot**, and any tool that reads `AGENTS.md` (Codex and compatible).
 
 Any package manager:
 
@@ -49,8 +49,8 @@ Three things break most often when building software with AI agents. This kit so
   HOUSE-RULES.md      ← written by human: how to work on this project
   INBOX.md            ← written by human: free-form thoughts
   QUESTIONS.md        ← team asks, human answers
-  roles/              13 roles
-  skills/             11 protocols
+  roles/              14 roles
+  skills/             15 protocols
   commands/           8 commands
   blocks/             text of the managed blocks written into CLAUDE.md / AGENTS.md
   state/              memory: BOOT · NOW · JOURNAL · DECISIONS · TEAM · RUNS
@@ -325,14 +325,23 @@ The kit itself costs about **2 000 tokens** at session start; the remaining ~15 
 
 ## Portability
 
-| | Claude Code | Cursor | AGENTS.md |
-|---|---|---|---|
-| Memory, tasks, protocols | ✓ | ✓ | ✓ |
-| Roles | subagents, isolated context | invocable templates | invocable templates |
-| Parallel execution | ✓ | — | — |
-| Slash commands | ✓ | partial | — |
+| | Claude Code | Cursor | AGENTS.md | Copilot |
+|---|---|---|---|---|
+| Memory, tasks, protocols | ✓ | ✓ | ✓ | ✓ |
+| Roles | subagents, isolated context | invocable templates | invocable templates | invocable templates |
+| Parallel execution | ✓ | — | — | — |
+| Slash commands | ✓ | partial | — | — |
 
 Memory deliberately lives in `.agentkit/state/` rather than inside a tool's folder: moving from Claude Code to Cursor doesn't lose project history. For the same reason observability is a protocol (`RUNS.md`) rather than hooks — hooks don't port, files do.
+
+### Protocols without the kit
+
+Seven protocols don't need the agentkit runtime: `adversarial-review` (with the `critic` subagent), `definition-of-done`, `context-budget`, `no-ai-attribution`, `handoff-protocol`, `memory-protocol` and `task-protocol` (with `planner`). `export` writes them as standalone skill folders that any agent reading `SKILL.md` picks up, and `--zip` packs each one for a skills marketplace:
+
+```bash
+npx @s1rne/agentkit export --zip                      # all seven → ./agentkit-skills/
+npx @s1rne/agentkit export adversarial-review --out ~/.claude/skills
+```
 
 ---
 

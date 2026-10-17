@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url";
 import { c, log, ok, warn, err, readDir, write, copyIfAbsent, parseFront, loadConfig, activeRoles, ensureGitignore } from "../lib/util.mjs";
 import { messages, LANGS } from "../lib/i18n.mjs";
 import { riskyEnvPresent } from "../lib/env.mjs";
+import { exportSkills } from "../lib/export.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const PKG = path.resolve(HERE, "..");
@@ -1026,6 +1027,15 @@ async function cmdBox() {
   log("");
 }
 
+function cmdExport() {
+  const t = messages(resolveLang("en"));
+  const names = process.argv.slice(3).filter((a, i, all) => !a.startsWith("--") && !all[i - 1]?.match(/^--(lang|out)$/));
+  const out = path.resolve(ROOT, arg("out", "agentkit-skills"));
+  const r = exportSkills(PKG, { lang: resolveLang("en"), out, names, zip: has("zip") });
+  if (has("json")) return json(r.map((x) => ({ ...x, dir: path.relative(ROOT, x.dir), zip: x.zip && path.relative(ROOT, x.zip) })));
+  for (const x of r) ok(t.exported(x.name, path.relative(ROOT, x.zip || x.dir)));
+}
+
 // ─────────────────────────────── main
 
 const cmd = process.argv[2];
@@ -1044,4 +1054,5 @@ else if (cmd === "wave") await cmdWave();
 else if (cmd === "context") await cmdContext();
 else if (cmd === "usage") await cmdUsage();
 else if (cmd === "box") await cmdBox();
+else if (cmd === "export") cmdExport();
 else log(messages(resolveLang("en")).help(c.b));

@@ -40,8 +40,8 @@ npx @s1rne/agentkit init --lang ru
   HOUSE-RULES.md      ← пишет человек: как работать в этом проекте
   INBOX.md            ← пишет человек: мысли в свободной форме
   QUESTIONS.md        ← вопросы команды человеку и ответы
-  roles/              13 ролей
-  skills/             11 протоколов
+  roles/              14 ролей
+  skills/             15 протоколов
   commands/           8 команд
   blocks/             тексты управляемых блоков для CLAUDE.md / AGENTS.md
   state/              память: BOOT · NOW · JOURNAL · DECISIONS · TEAM · RUNS
@@ -155,6 +155,15 @@ npx @s1rne/agentkit role cap backend-dev 4
 | Слэш-команды | ✓ | частично | — |
 
 Память намеренно живёт в `.agentkit/state/`, а не внутри папки инструмента: переход с Claude Code на Cursor не теряет историю проекта. По той же причине наблюдаемость сделана протоколом (`RUNS.md`), а не хуками — хуки не переносятся, файлы переносятся.
+
+### Протоколы без кита
+
+Семи протоколам рантайм agentkit не нужен: `adversarial-review` (с субагентом `critic`), `definition-of-done`, `context-budget`, `no-ai-attribution`, `handoff-protocol`, `memory-protocol` и `task-protocol` (с `planner`). `export` пишет их отдельными папками скиллов, которые подхватит любой агент, читающий `SKILL.md`, а `--zip` упаковывает каждый для маркетплейса скиллов:
+
+```bash
+npx @s1rne/agentkit export --zip --lang ru            # все семь → ./agentkit-skills/
+npx @s1rne/agentkit export adversarial-review --out ~/.claude/skills
+```
 
 ---
 
